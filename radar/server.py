@@ -15,7 +15,8 @@ class Server(HTTPServer):
     allow_reuse_address = False
 
 
-def avvia(con, regole):
+def avvia(con, regole, apri=True):
+    """Tiene acceso il server; `apri` mostra anche la pagina. Se un server gira già, al massimo apre la pagina."""
     class Gestore(BaseHTTPRequestHandler):
         def rispondi(self, codice, corpo=b"", tipo="text/html; charset=utf-8"):
             self.send_response(codice)
@@ -47,9 +48,11 @@ def avvia(con, regole):
     try:
         server = Server(INDIRIZZO, Gestore)
     except OSError:
-        # già aperto da un doppio clic precedente: basta riaprire la pagina
-        webbrowser.open(url)
+        # già acceso (all'avvio del PC o da un clic precedente): basta la pagina
+        if apri:
+            webbrowser.open(url)
         return
-    print(f"Il Radar su {url}  (Ctrl+C per chiudere)")
-    webbrowser.open(url)
+    print(f"Il Radar su {url}")
+    if apri:
+        webbrowser.open(url)
     server.serve_forever()

@@ -7,14 +7,18 @@ Solo libreria standard Python. Niente testo esce dal PC.
 
 ## Uso
 
-**Doppio clic su `radar.cmd`** apre il giornale nel browser (la finestra nera tiene acceso il server:
-chiudila quando hai finito). Il giro del mattino lo lancia da sola l'attività pianificata di Windows
-"Il Radar" (lun-ven 07:30) con `radar.cmd giro`; il log è in `data/giri.log`.
+- **Icona "Il Radar" sul desktop** → apre il giornale nel browser (se il server è spento lo riaccende).
+- **All'accesso a Windows** il collegamento `Il Radar (server)` nella cartella Esecuzione automatica
+  (`shell:startup`) accende il server in background, senza finestre. Per non farlo partire: cancella quel collegamento.
+- **Il giro del mattino** lo lancia l'attività pianificata "Il Radar" (lun-ven 07:30) con `radar.cmd giro`;
+  log in `data/giri.log`. Il server acceso mostra da solo l'edizione nuova.
 
 A mano:
 
-    py -m radar giro     # raccoglie, prefiltra, fa valutare a MiniCPM, scrive edizioni/AAAA-MM-GG.html
-    py -m radar serve    # apre il giornale su http://127.0.0.1:8765 con i pulsanti utile / non mi interessa
+    py -m radar giro     # raccoglie, seleziona, fa riassumere a MiniCPM, scrive edizioni/AAAA-MM-GG.html
+    py -m radar apri     # apre il giornale (http://127.0.0.1:8765), accendendo il server se serve
+    py -m radar serve    # solo il server, senza aprire il browser
+    py strumenti/icona.py   # rigenera radar.ico
 
 ## Come funziona
 

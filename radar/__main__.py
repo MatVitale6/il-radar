@@ -1,7 +1,8 @@
 """Il Radar.
 
     py -m radar giro      raccoglie, seleziona, fa riassumere a MiniCPM e impagina l'edizione di oggi
-    py -m radar serve     apre il giornale su http://127.0.0.1:8765 (con i pulsanti utile / no)
+    py -m radar serve     tiene acceso il giornale su http://127.0.0.1:8765 (all'avvio del PC, senza finestre)
+    py -m radar apri      apre il giornale nel browser, accendendo il server se serve (l'icona sul desktop)
 """
 import datetime as dt
 import re
@@ -87,9 +88,9 @@ def main():
         raccogli(con, oggi)
         riassumi(con, oggi)
         impagina(con, oggi)
-    elif comando == "serve":
+    elif comando in ("serve", "apri"):
         from . import server
-        server.avvia(con, PROFILO["pubblica"])
+        server.avvia(con, PROFILO["pubblica"], apri=comando == "apri")
     else:
         sys.exit(__doc__)
 
