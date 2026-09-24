@@ -32,6 +32,9 @@ nella pagina pareggia la prima pagina: sposta sotto l'apertura tante notizie qua
 di sinistra finisca insieme a "In breve", misurando nel formato in cui la pagina verrà vista. Prima di stampare
 la pagina passa alla classe `.carta` (larghezza e caratteri del foglio), misura, poi torna com'era.
 `http://127.0.0.1:8765/?carta` (pulsante "Anteprima di stampa") mostra la pagina come uscirà dalla stampante.
+In stampa non compaiono le intestazioni del browser (titolo, data, indirizzo, numero di pagina): il margine del
+foglio è zero, così il browser non ha dove metterle, e i 10 mm di margine li dà il giornale stesso, ripetuti su
+ogni pagina (`box-decoration-break: clone`).
 In `giornale.py` le regole della carta (`CARTA`) sono scritte una volta e valgono sia in `@media print` sia sotto
 `html.carta`.
 

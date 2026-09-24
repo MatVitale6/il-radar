@@ -311,7 +311,7 @@ h3 { overflow-wrap: break-word; }
   background: var(--carta); color: var(--inchiostro); border: 1px solid var(--filetto); padding: 8px 12px; cursor: pointer; }
 @media screen {      /* l'anteprima ?carta sembra un foglio; in stampa questo non serve */
   .carta body { background: #e8e8e8; }
-  .carta .foglio { background: var(--carta); box-shadow: 0 0 0 10mm var(--carta); margin: 16mm auto; }
+  .carta .foglio { background: var(--carta); margin: 6mm auto; }
 }
 
 /* schermi stretti: solo a schermo e non nell'anteprima di stampa (un A4 è largo ~720px e le prenderebbe) */
@@ -336,7 +336,7 @@ h3 { overflow-wrap: break-word; }
 CARTA = """
 body { font-size: 8.8pt; line-height: 1.35; }
 .strumenti, .giudizio, .fondo, .perche, .originale, .repo .firma { display: none !important; }
-.foglio { max-width: none; width: 190mm; padding: 0; }
+.foglio { max-width: none; width: 210mm; padding: 10mm; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .testata h1 { font-size: 46pt; padding: 2px 0 0; }
 .orecchio { font-size: 7pt; padding: 4px 7px; }
 .riga { font-size: 7.5pt; padding: 3px 0; }
@@ -382,7 +382,9 @@ def _in_carta(regole):
                   regole)
 
 
-CSS = BASE + "\n@page { size: A4; margin: 10mm; }\n@media print {" + CARTA + "}\n" + _in_carta(CARTA)
+# Margine del foglio a zero: così il browser non ha dove stampare le sue intestazioni (titolo, data, indirizzo).
+# I 10 mm di margine li dà .foglio, ripetuti su ogni pagina da box-decoration-break: clone.
+CSS = BASE + "\n@page { size: A4; margin: 0; }\n@media print {" + CARTA + "}\n" + _in_carta(CARTA)
 
 JS = """
 const radice = document.documentElement;
