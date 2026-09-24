@@ -7,6 +7,12 @@ Solo libreria standard Python. Niente testo esce dal PC.
 
 ## Uso
 
+**Doppio clic su `radar.cmd`** apre il giornale nel browser (la finestra nera tiene acceso il server:
+chiudila quando hai finito). Il giro del mattino lo lancia da sola l'attività pianificata di Windows
+"Il Radar" (lun-ven 07:30) con `radar.cmd giro`; il log è in `data/giri.log`.
+
+A mano:
+
     py -m radar giro     # raccoglie, prefiltra, fa valutare a MiniCPM, scrive edizioni/AAAA-MM-GG.html
     py -m radar serve    # apre il giornale su http://127.0.0.1:8765 con i pulsanti utile / non mi interessa
 

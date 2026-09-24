@@ -10,6 +10,11 @@ from . import giornale
 INDIRIZZO = ("127.0.0.1", 8765)
 
 
+class Server(HTTPServer):
+    # su Windows il riuso dell'indirizzo lascia due server sulla stessa porta: così il secondo fallisce
+    allow_reuse_address = False
+
+
 def avvia(con, regole):
     class Gestore(BaseHTTPRequestHandler):
         def rispondi(self, codice, corpo=b"", tipo="text/html; charset=utf-8"):
@@ -39,6 +44,12 @@ def avvia(con, regole):
             pass
 
     url = f"http://{INDIRIZZO[0]}:{INDIRIZZO[1]}/"
+    try:
+        server = Server(INDIRIZZO, Gestore)
+    except OSError:
+        # già aperto da un doppio clic precedente: basta riaprire la pagina
+        webbrowser.open(url)
+        return
     print(f"Il Radar su {url}  (Ctrl+C per chiudere)")
     webbrowser.open(url)
-    HTTPServer(INDIRIZZO, Gestore).serve_forever()
+    server.serve_forever()
