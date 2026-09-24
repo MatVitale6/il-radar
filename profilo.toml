@@ -1,0 +1,89 @@
+# Chi sei, per il radar.
+# - `parole` decidono cosa finisce sul giornale: si sommano i pesi delle parole trovate in titolo
+#   o abstract (plurali inclusi); il totale, tagliato a 10, è il voto. Pesi negativi = argomenti da
+#   spingere giù. (Il modello locale si è dimostrato inaffidabile nel giudicare: fa solo i riassunti.)
+# - `descrizione` è il promemoria umano di chi sei; per ora non la legge nessun modello.
+
+descrizione = """
+Matteo Vitale, ingegnere e sviluppatore freelance in Italia. Lavora su: sviluppo web e grafica 3D
+(Vite, JavaScript, three.js, WebGL), automazioni e pipeline in Python, AI applicata (agenti LLM,
+uso di strumenti, RAG, modelli piccoli che girano in locale), sicurezza informatica (sicurezza dei
+sistemi AI, del web e del software). Preferisce lavori pratici, strumenti e tecniche usabili
+subito; la teoria pura (dimostrazioni, limiti di convergenza) gli interessa poco.
+"""
+
+[pubblica]
+soglia = 6        # voto minimo (0-10) per finire sul giornale
+massimo = 15      # articoli al giorno riassunti da MiniCPM (~40 s l'uno sul tuo PC)
+fondo = 20        # quanti dei successivi mostrare in fondo, solo titolo, per i tuoi giudizi
+
+[parole]
+# AI applicata
+"agent" = 2
+"agentic" = 3
+"llm agent" = 3
+"coding agent" = 4
+"tool use" = 3
+"tool-use" = 3
+"function calling" = 3
+"retrieval-augmented" = 3
+"rag" = 3
+"small language model" = 4
+"on-device" = 3
+"edge device" = 2
+"quantization" = 2
+"efficient inference" = 2
+"open-source" = 1
+"code generation" = 3
+"software engineering" = 2
+"automation" = 3
+"workflow" = 2
+"pipeline" = 1
+"python" = 3
+"embedding" = 2
+"classification" = 1
+# web e 3D
+"web" = 2
+"browser" = 3
+"javascript" = 4
+"webgl" = 5
+"three.js" = 5
+"3d" = 2
+"rendering" = 2
+# sicurezza
+"prompt injection" = 5
+"jailbreak" = 3
+"llm security" = 4
+"red team" = 3
+"red-team" = 3
+"vulnerability" = 3
+"vulnerability detection" = 2
+"malware" = 3
+"phishing" = 3
+"supply chain" = 4
+"fuzzing" = 3
+"penetration test" = 4
+"exploit" = 3
+"cve" = 4
+"web security" = 4
+"xss" = 4
+"authentication" = 2
+"secure code" = 4
+"static analysis" = 3
+"backdoor" = 2
+# teoria pura: giù
+"regret bound" = -3
+"convergence rate" = -2
+"theorem" = -2
+"asymptotic" = -2
+# campi applicativi lontani: giù
+"clinical" = -3
+"patient" = -3
+"medical" = -3
+"cancer" = -3
+"tumor" = -3
+"disease" = -2
+"protein" = -3
+"molecular" = -2
+"power grid" = -3
+"smart grid" = -3
