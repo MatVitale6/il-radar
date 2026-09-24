@@ -13,6 +13,14 @@ Solo libreria standard Python. Niente testo esce dal PC.
 - **Il giro del mattino** lo lancia l'attività pianificata "Il Radar" (lun-ven 07:30) con `radar.cmd giro`;
   log in `data/giri.log`. Il server acceso mostra da solo l'edizione nuova.
 
+**Dal telefono** (stessa Wi-Fi): `http://192.168.1.6:8765` — l'indirizzo del PC in casa (se cambia:
+`ipconfig`, voce Wi-Fi). Il pulsante **Stampa sulla Canon** fa stampare il PC: il server apre una Edge fuori
+schermo, con un profilo suo (`data/edge-stampa`), in modalità `--kiosk-printing`; la pagina con `?stampa` si
+impagina sul foglio A4, stampa sulla stampante predefinita senza finestra di dialogo e si chiude.
+Perché il telefono arrivi al PC: server su `0.0.0.0` + `strumenti/rete-di-casa.ps1` (da amministratore: Wi-Fi
+di casa "Privata" e porta 8765 aperta solo sulle reti private e alla rete locale). Con NordVPN attiva serve
+l'opzione che lascia visibili i dispositivi della rete locale.
+
 A mano:
 
     py -m radar giro     # raccoglie, seleziona, fa riassumere a MiniCPM, scrive edizioni/AAAA-MM-GG.html
