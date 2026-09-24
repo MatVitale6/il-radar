@@ -22,11 +22,25 @@ A mano:
 
 ## Come funziona
 
-1. **raccolta** (`radar/fonti.py`) — per ora il feed RSS di arXiv (cs.AI, cs.LG, cs.CR), solo lavori nuovi
-2. **doppioni** — SQLite in `data/radar.db`: ogni elemento lo vedi una volta
-3. **prefiltro** — parole chiave pesate in `profilo.toml`; passano al modello al massimo `prefiltro.massimo` elementi
-4. **MiniCPM** (`radar/llm.py`) — voto 0-10, titolo e riassunto in italiano, "perché ti riguarda"
-5. **impaginazione** (`radar/giornale.py`) — pubblicati quelli con voto ≥ `pubblica.soglia`
+Tre parti, in quest'ordine sulla pagina: **notizie**, **repository GitHub**, **ricerca**. Il sabato e la
+domenica, al posto della ricerca, **il weekend a Roma e dintorni** (guide, musica, sagre, mostre). In testata
+il **meteo** del giorno (Open-Meteo). In stampa sta in 3 fogli A4: a schermo si vedono in più "Perché è qui",
+i titoli originali, i temi dei repository, i "Rimasti fuori" e i pulsanti.
+
+1. **raccolta** (`radar/fonti.py`)
+   - notizie: feed RSS di testate tech, cyber e di politica digitale (EN e IT) + ricerche mirate su Google News;
+     solo le ultime `notizie.ore` ore
+   - GitHub: API di ricerca, repository creati negli ultimi `github.giorni` giorni, per stelle (generale + temi)
+   - ricerca: feed RSS di arXiv (cs.AI, cs.LG, cs.CR), solo lavori nuovi
+2. **doppioni** — SQLite in `data/radar.db`. La stessa notizia da più testate (titoli simili, anche tra
+   italiano e inglese) diventa una sola, con "su N testate" e punti in più
+3. **selezione** — parole chiave pesate in `profilo.toml`. Le notizie hanno tre gruppi che sono anche le
+   rubriche (Governi e regole, Cybersicurezza, AI e sviluppo) ed entrano solo se toccano tecnologia o
+   sicurezza; nella scelta si salta ciò che è troppo vicino a una notizia già presa
+4. **MiniCPM** (`radar/llm.py`) — traduce e riassume solo ciò che è in inglese; le fonti italiane escono come sono.
+   Risposte in testo semplice (`TITOLO:` / `RIASSUNTO:`): il JSON lo sbaglia spesso. Se nella traduzione
+   compaiono caratteri cinesi (succede: "dei数据中心") riprova una volta, poi tiene l'originale inglese
+5. **impaginazione** (`radar/giornale.py`) — apertura, spalle, "In breve", rubriche, repository, ricerca
 6. **giudizi** — i pulsanti sulla pagina salvano +1/-1 nel database, per tarare profilo e soglie
 
 ## Cartelle non versionate

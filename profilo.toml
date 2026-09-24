@@ -1,23 +1,235 @@
-# Chi sei, per il radar.
-# - `parole` decidono cosa finisce sul giornale: si sommano i pesi delle parole trovate in titolo
-#   o abstract (plurali inclusi); il totale, tagliato a 10, è il voto. Pesi negativi = argomenti da
-#   spingere giù. (Il modello locale si è dimostrato inaffidabile nel giudicare: fa solo i riassunti.)
-# - `descrizione` è il promemoria umano di chi sei; per ora non la legge nessun modello.
+# Chi sei, per il radar. Il giornale ha tre parti, in quest'ordine: notizie, repository GitHub, ricerca.
+#
+# Come si scrivono le parole chiave (valgono in tutte le tabelle `parole`):
+# - si cercano in titolo e testo; il peso si somma una volta per parola; pesi negativi = spingi giù
+# - "parola" trova anche il plurale inglese (agent -> agents)
+# - "radice*" trova tutte le terminazioni (regolament* -> regolamento, regolamenti, regolamentare)
+# - le sigle TUTTE MAIUSCOLE contano solo scritte così ("AI" sì, la preposizione "ai" no);
+#   tutto il resto ignora maiuscole e minuscole
+#
+# Il modello locale si è dimostrato inaffidabile nel giudicare: seleziona tutto il codice, lui traduce e riassume.
 
 descrizione = """
 Matteo Vitale, ingegnere e sviluppatore freelance in Italia. Lavora su: sviluppo web e grafica 3D
 (Vite, JavaScript, three.js, WebGL), automazioni e pipeline in Python, AI applicata (agenti LLM,
 uso di strumenti, RAG, modelli piccoli che girano in locale), sicurezza informatica (sicurezza dei
-sistemi AI, del web e del software). Preferisce lavori pratici, strumenti e tecniche usabili
-subito; la teoria pura (dimostrazioni, limiti di convergenza) gli interessa poco.
+sistemi AI, del web e del software). Segue anche le notizie istituzionali: leggi e limiti sull'AI,
+data center, attacchi informatici a paesi e aziende, sovranità digitale europea.
 """
 
-[pubblica]
-soglia = 6        # voto minimo (0-10) per finire sul giornale
-massimo = 15      # articoli al giorno riassunti da MiniCPM (~40 s l'uno sul tuo PC)
-fondo = 20        # quanti dei successivi mostrare in fondo, solo titolo, per i tuoi giudizi
+[giornale]
+fondo = 15        # quanti "rimasti fuori" mostrare in fondo, per i tuoi giudizi
 
-[parole]
+[meteo]
+citta = "Roma"
+lat = 41.89
+lon = 12.49
+
+# ── 1. NOTIZIE ────────────────────────────────────────────────────────────────
+[notizie]
+ore = 36          # notizie più vecchie di così alla fonte non entrano
+soglia = 4        # punti minimi
+massimo = 12      # pubblicate per esteso (le inglesi tradotte da MiniCPM, ~35 s l'una)
+brevi = 10        # le successive, solo titolo, nella colonna "In breve"
+copertura = 2     # punti in più per ogni altra testata che dà la stessa notizia
+# Tre gruppi = tre rubriche. Una notizia finisce nella rubrica dove prende più punti, ma entra
+# solo se tocca "tecnologia" o "sicurezza": una legge che non parla di digitale resta fuori.
+
+[notizie.norme]           # rubrica "Governi e regole"
+"legge" = 3
+"leggi" = 3
+"law" = 3
+"laws" = 3
+"bill" = 2
+"regolament*" = 3
+"regulat*" = 3
+"normativ*" = 3
+"divieto" = 3
+"vieta*" = 3
+"ban" = 3
+"bans" = 3
+"banned" = 3
+"moratori*" = 3
+"limiti" = 2
+"restriction*" = 2
+"sanzion*" = 2
+"multa" = 2
+"fined" = 2
+"AI Act" = 4
+"GDPR" = 3
+"garante" = 3
+"antitrust" = 3
+"governo" = 2
+"government" = 2
+"ministero" = 2
+"ministry" = 2
+"parlament*" = 2
+"Commissione europea" = 3
+"European Commission" = 3
+"Unione europea" = 2
+"EU" = 2
+"sovranità digitale" = 4
+"digital sovereignty" = 4
+"acqua" = 1
+"water" = 1
+
+[notizie.sicurezza]       # rubrica "Cybersicurezza"
+"attacco informatico" = 5
+"attacchi informatici" = 5
+"cyberattac*" = 5
+"cyber attack" = 5
+"ransomware" = 5
+"hacker*" = 3
+"data breach" = 4
+"breach" = 3
+"violazione dei dati" = 4
+"phishing" = 3
+"malware" = 4
+"spyware" = 4
+"vulnerabilit*" = 3
+"zero-day" = 4
+"exploit*" = 3
+"CVE" = 3
+"DDoS" = 4
+"cybersecurity" = 2
+"cybersicurezza" = 2
+"sicurezza informatica" = 2
+"ACN" = 2
+
+[notizie.tecnologia]      # rubrica "AI e sviluppo"
+"intelligenza artificiale" = 4
+"artificial intelligence" = 4
+"AI" = 3
+"IA" = 3
+"LLM" = 4
+"chatbot" = 2
+"OpenAI" = 3
+"Anthropic" = 3
+"Claude" = 2
+"ChatGPT" = 3
+"Gemini" = 2
+"Mistral" = 3
+"DeepSeek" = 3
+"Llama" = 2
+"agent" = 2
+"agenti" = 2
+"Nvidia" = 2
+"chip" = 2
+"semiconduttor*" = 2
+"semiconductor*" = 2
+"data center" = 4
+"data centre" = 4
+"data centers" = 4
+"cloud" = 2
+"open source" = 3
+"open-source" = 3
+"software libero" = 3
+"software" = 1
+"sviluppator*" = 2
+"developer*" = 2
+"programmazion*" = 2
+"GitHub" = 3
+"Linux" = 2
+"Python" = 3
+"JavaScript" = 3
+"WebGL" = 3
+"browser" = 1
+"office" = 1
+"quantum" = 1
+"quantistic*" = 1
+
+[notizie.giu]             # rumore da spingere giù
+"offert*" = -3
+"sconto" = -3
+"sconti" = -3
+"deal" = -3
+"deals" = -3
+"Black Friday" = -4
+"recensione" = -2
+"review" = -1
+"le migliori" = -3
+"best" = -1
+"calcio" = -4
+"videogioc*" = -2
+"oroscopo" = -5
+
+# ── 2. REPOSITORY GITHUB ──────────────────────────────────────────────────────
+[github]
+giorni = 7        # repository creati da non più di tanti giorni
+massimo = 8       # quanti pubblicarne (descrizione tradotta da MiniCPM)
+temi = ["mcp", "llm", "ai-agents", "local-llm", "cybersecurity", "threejs"]
+# punti = log2(stelle) + parole chiave della ricerca trovate in nome, descrizione e temi
+
+# ── 3a. WEEKEND A ROMA (sabato e domenica, al posto della ricerca) ──────────────
+[weekend]
+ore = 96          # annunci più vecchi di così non entrano
+massimo = 14      # eventi in pagina (fonti italiane: niente modello)
+soglia = 3
+# Entra solo ciò che nomina uno di questi luoghi (nel titolo o nel testo).
+luoghi = ["Roma", "Lazio", "Castelli Romani", "Ostia", "Tivoli", "Frascati", "Viterbo", "Rieti", "Latina",
+          "Frosinone", "Fiumicino", "Bracciano", "Nemi", "Ariccia", "Marino", "Genzano", "Velletri", "Albano",
+          "Grottaferrata", "Rocca di Papa", "Anzio", "Nettuno", "Civitavecchia", "Cerveteri", "Subiaco",
+          "Sabina", "Tuscia", "Ciociaria", "Gaeta", "Sperlonga", "Terracina", "Formia", "Bagnoregio"]
+# Testate romane e laziali: quello che pubblicano vale come "dintorni" anche se il paese non è nell'elenco.
+fonti_locali = ["lazioeventi.com", "RomaToday", "romapop.it", "Roma.Com", "EZ Rome", "Secret Roma", "Romeing",
+                "inforomacapitale.it", "Roma Report", "Roma 03", "Il Messaggero", "radioroma.it", "7colli.it",
+                "Vivere Roma", "Il Giornale dei Castelli Romani", "Castelli Notizie", "Wanted in Rome"]
+# Quattro gruppi = quattro rubriche; si finisce dove si prendono più punti.
+[weekend.guide]
+"cosa fare" = 4
+"weekend a Roma" = 4
+"weekend nel Lazio" = 4
+"eventi a Roma" = 4
+"eventi weekend" = 4
+"weekend" = 2
+"fine settimana" = 2
+"eventi" = 2
+"agenda" = 2
+"appuntamenti" = 2
+[weekend.musica]
+"concert*" = 5
+"festival" = 3
+"live" = 2
+"musica" = 2
+"tour" = 2
+"jazz" = 3
+"orchestra" = 3
+"opera" = 2
+"rock" = 2
+"Auditorium" = 3
+"Palazzo dello Sport" = 3
+[weekend.sagre]
+"sagra" = 5
+"sagre" = 5
+"festa" = 2
+"feste" = 2
+"gusto" = 2
+"vino" = 2
+"vendemmia" = 3
+"degustazion*" = 3
+"enogastronom*" = 3
+"street food" = 3
+"castagn*" = 3
+"porchetta" = 3
+"mercat*" = 2
+[weekend.mostre]
+"mostra" = 5
+"mostre" = 5
+"esposizion*" = 3
+"museo" = 2
+"musei" = 2
+"galleria" = 2
+"inaugura*" = 2
+"arte" = 2
+"Scuderie" = 3
+"Vittoriano" = 2
+
+# ── 3. RICERCA (arXiv) ────────────────────────────────────────────────────────
+[ricerca]
+soglia = 6        # voto minimo (0-10)
+massimo = 5       # articoli riassunti da MiniCPM (~40 s l'uno)
+
+[ricerca.parole]
 # AI applicata
 "agent" = 2
 "agentic" = 3

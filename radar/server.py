@@ -29,7 +29,7 @@ def avvia(con, regole, apri=True):
             m = re.fullmatch(r"/(\d{4}-\d{2}-\d{2})?", self.path)
             if not m:
                 return self.rispondi(404, b"non trovato")
-            data = m[1] or con.execute("SELECT MAX(visto_il) FROM elementi WHERE riassunto IS NOT NULL").fetchone()[0] \
+            data = m[1] or con.execute("SELECT MAX(visto_il) FROM elementi WHERE ruolo IS NOT NULL").fetchone()[0] \
                 or dt.date.today().isoformat()
             self.rispondi(200, giornale.pagina(con, data, regole).encode())
 

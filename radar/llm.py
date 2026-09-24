@@ -3,7 +3,6 @@ import json
 import os
 import subprocess
 import time
-import urllib.error
 import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
@@ -49,25 +48,17 @@ def ollama():
         proc.terminate()
 
 
-def chiedi(sistema, testo, schema):
-    """Una domanda, risposta JSON secondo lo schema (i valori vanno comunque controllati da chi chiama)."""
-    corpo = {
+def scrivi(sistema, testo):
+    """Una domanda, risposta in testo semplice.
+
+    Niente JSON: su Ollama 0.34 minicpm4.1 non regge l'output vincolato (400 "Failed to initialize samplers")
+    e, se il JSON glielo chiedi a parole, circa metà delle volte lo sbaglia. Il testo a righe lo scrive sempre.
+    """
+    r = _post("/api/chat", {
         "model": MODELLO,
         "messages": [{"role": "system", "content": sistema}, {"role": "user", "content": testo}],
-        "format": schema,
         "stream": False,
         "think": False,
         "options": {"temperature": 0},
-    }
-    try:
-        r = _post("/api/chat", corpo)
-    except urllib.error.HTTPError as e:
-        if e.code != 400:
-            raise
-        # Alcuni modelli (minicpm4.1 su Ollama 0.34) non reggono l'output vincolato: il JSON lo chiedo a parole.
-        del corpo["format"]
-        corpo["messages"][0]["content"] += ("\n\nRispondi solo con un oggetto JSON conforme a questo schema:\n"
-                                            + json.dumps(schema, ensure_ascii=False))
-        r = _post("/api/chat", corpo)
-    risposta = r["message"]["content"]
-    return json.loads(risposta[risposta.find("{"):risposta.rfind("}") + 1])
+    })
+    return r["message"]["content"].strip()

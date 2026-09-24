@@ -1,12 +1,17 @@
-"""Impagina un'edizione come prima pagina di un quotidiano, in bianco e nero e stampabile."""
+"""Impagina un'edizione come prima pagina di un quotidiano, in bianco e nero e stampabile.
+
+Ordine: notizie (apertura, spalle, "In breve", poi le rubriche), repository GitHub, ricerca.
+"""
 import datetime as dt
+import json
 import re
 from html import escape
 
 GIORNI = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"]
 MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio",
         "agosto", "settembre", "ottobre", "novembre", "dicembre"]
-SEZIONI = {"ai": "Intelligenza artificiale", "sicurezza": "Sicurezza informatica"}
+RUBRICHE = {"norme": "Governi e regole", "sicurezza": "Cybersicurezza", "tecnologia": "AI e sviluppo"}
+RICERCA = {"ai": "Intelligenza artificiale", "sicurezza": "Sicurezza informatica"}
 
 
 def romano(n):
@@ -24,7 +29,7 @@ def voto(r):
 
 def breve(s):
     """Il modello sfora spesso il limite di parole: sulla pagina al massimo due frasi."""
-    return " ".join(re.split(r"(?<=[.!?])\s+", s.strip())[:2])
+    return " ".join(re.split(r"(?<=[.!?])\s+", (s or "").strip())[:2])
 
 
 def autori(s):
@@ -41,58 +46,131 @@ def pulsanti(r):
 
 def articolo(r, classe=""):
     titolo = r["titolo_it"] or r["titolo"]
+    if r["sezione"] == "notizie":
+        occhiello = f"{RUBRICHE.get(r['rubrica'], 'Notizie')} · {escape(r['fonte'])}"
+        if r["copertura"] > 1:
+            occhiello += f" · su {r['copertura']} testate"
+        firma = f'<a href="{escape(r["url"])}">Leggi su {escape(r["fonte"])}</a>'
+    else:
+        occhiello = f"{RICERCA.get(r['rubrica'], 'Ricerca')} · rilevanza {voto(r)}/10"
+        firma = f'{escape(autori(r["autori"]))} — <a href="{escape(r["url"])}">{escape(r["fonte"])}</a>'
+    originale = (f'<p class="originale">{escape(r["titolo"])}</p>'
+                 if r["titolo_it"] and r["titolo_it"] != r["titolo"] else "")
+    corpo = f'<p class="corpo">{escape(breve(r["riassunto"]))}</p>' if r["riassunto"] else ""
     return f"""
 <article class="{classe}" id="{escape(r['id'])}">
-  <p class="occhiello">{SEZIONI[r['sezione']]} · rilevanza {voto(r)}/10</p>
+  <p class="occhiello">{occhiello}</p>
   <h3><a href="{escape(r['url'])}">{escape(titolo)}</a></h3>
-  <p class="originale">{escape(r['titolo'])}</p>
-  <p class="corpo">{escape(breve(r['riassunto']))}</p>
+  {originale}{corpo}
   <p class="perche"><span>Perché è qui.</span> {escape(r['parole'])}</p>
-  <p class="firma">{escape(autori(r['autori']))} — <a href="{escape(r['url'])}">{escape(r['fonte'])}</a></p>
+  <p class="firma">{firma}</p>
   {pulsanti(r)}
 </article>"""
 
 
-def pagina(con, data, regole):
+def scheda_repo(r):
+    x = json.loads(r["extra"])
+    padrone, nome = r["titolo"].split("/", 1)
+    stelle = f"{x['stelle']:,}".replace(",", ".")
+    linguaggio = f" · {escape(x['linguaggio'])}" if x["linguaggio"] else ""
+    temi = " · ".join(x["temi"][:4])
+    corpo = f'<p class="corpo">{escape(breve(r["riassunto"]))}</p>' if r["riassunto"] else ""
+    return f"""
+<article class="repo" id="{escape(r['id'])}">
+  <p class="occhiello">★ {stelle}{linguaggio}</p>
+  <h3><a href="{escape(r['url'])}">{escape(padrone)}/<b>{escape(nome)}</b></a></h3>
+  {corpo}
+  {f'<p class="firma">{escape(temi)}</p>' if temi else ''}
+  {pulsanti(r)}
+</article>"""
+
+
+def _testatina(nome):
+    return f'<h2 class="testatina"><span>{nome}</span></h2>'
+
+
+WEEKEND = {"guide": "Guide", "musica": "Musica", "sagre": "Sagre e feste", "mostre": "Mostre"}
+
+
+def sezione_weekend(eventi):
+    colonne = ""
+    for chiave, nome in WEEKEND.items():
+        voci = "".join(f'<li id="{escape(r["id"])}"><a href="{escape(r["url"])}">{escape(r["titolo"])}</a>'
+                       f'<span>{escape(r["fonte"])}</span>{pulsanti(r)}</li>'
+                       for r in eventi if r["rubrica"] == chiave)
+        if voci:
+            colonne += f'<div class="agenda"><h3>{nome}</h3><ol>{voci}</ol></div>'
+    return f'<section class="sezione weekend">{_testatina("Il weekend a Roma e dintorni")}<div class="agende">{colonne}</div></section>'
+
+
+def orecchio_meteo(con, data):
+    riga = con.execute("SELECT dati FROM meteo WHERE data=?", (data,)).fetchone()
+    if not riga:
+        return '<div class="orecchio destra">Tutte le notizie<br>che ti riguardano</div>'
+    m = json.loads(riga[0])
+    return (f'<div class="orecchio destra meteo"><b>Il tempo a {escape(m["citta"])}</b><br>{m["cielo"]}<br>'
+            f'{m["min"]}° – {m["max"]}° · pioggia {m["pioggia"]}%</div>')
+
+
+def pagina(con, data, profilo):
     q = lambda sql, *a: con.execute(sql, (data, *a)).fetchall()
-    pubblicati = q("SELECT * FROM elementi WHERE visto_il=? AND riassunto IS NOT NULL ORDER BY punti DESC")
-    scartati = q("SELECT * FROM elementi WHERE visto_il=? AND riassunto IS NULL AND punti>0 ORDER BY punti DESC LIMIT ?",
-                 regole["fondo"])
-    letti = q("SELECT COUNT(*) FROM elementi WHERE visto_il=?")[0][0]
-    numero = con.execute("SELECT COUNT(DISTINCT visto_il) FROM elementi WHERE visto_il<=? AND riassunto IS NOT NULL",
+    notizie = q("SELECT * FROM elementi WHERE visto_il=? AND sezione='notizie' AND ruolo='articolo'"
+                " ORDER BY punti DESC, copertura DESC")
+    brevi = q("SELECT * FROM elementi WHERE visto_il=? AND sezione='notizie' AND ruolo='breve' ORDER BY punti DESC")
+    repo = q("SELECT * FROM elementi WHERE visto_il=? AND sezione='github' AND ruolo='articolo' ORDER BY punti DESC")
+    ricerca = q("SELECT * FROM elementi WHERE visto_il=? AND sezione='ricerca' AND ruolo='articolo' ORDER BY punti DESC")
+    d = dt.date.fromisoformat(data)
+    eventi = []
+    if d.weekday() >= 5:            # sabato e domenica: il weekend a Roma (la domenica anche ciò che è uscito sabato)
+        sabato = (d - dt.timedelta(days=d.weekday() - 5)).isoformat()
+        eventi = con.execute("SELECT * FROM elementi WHERE sezione='weekend' AND ruolo='articolo' AND visto_il"
+                             " BETWEEN ? AND ? ORDER BY punti DESC", (sabato, data)).fetchall()
+    fuori = q("SELECT * FROM elementi WHERE visto_il=? AND ruolo IS NULL AND punti>0 AND sezione!='github'"
+              " ORDER BY sezione='ricerca', punti DESC LIMIT ?", profilo["giornale"]["fondo"])
+    numero = con.execute("SELECT COUNT(DISTINCT visto_il) FROM elementi WHERE visto_il<=? AND ruolo IS NOT NULL",
                          (data,)).fetchone()[0] or 1
     primo = con.execute("SELECT MIN(visto_il) FROM elementi").fetchone()[0] or data
     anno = romano(int(data[:4]) - int(primo[:4]) + 1)
-    d = dt.date.fromisoformat(data)
     giorno = f"{GIORNI[d.weekday()]} {d.day} {MESI[d.month - 1]} {d.year}"
 
-    if pubblicati:
-        apertura, spalle, resto = pubblicati[0], pubblicati[1:3], pubblicati[3:]
-        sommario = "".join(f'<li><a href="#{escape(r["id"])}">{escape(r["titolo_it"] or r["titolo"])}</a>'
-                           f'<span>{voto(r)}</span></li>' for r in pubblicati[1:]) or "<li>Nient'altro oggi.</li>"
+    # apertura: la notizia più forte che abbia anche un testo (quelle di Google News hanno solo il titolo)
+    apertura = next((r for r in notizie if r["riassunto"]), notizie[0] if notizie else None)
+    resto = [r for r in notizie if r is not apertura]
+    spalle, resto = resto[:2], resto[2:]
+    in_breve = "".join(f'<li><a href="{escape(r["url"])}">{escape(r["titolo_it"] or r["titolo"])}</a>'
+                       f'<span>{escape(r["fonte"])}</span></li>' for r in brevi) or "<li>Nient'altro oggi.</li>"
+    if apertura:
         prima = f"""
 <section class="prima">
   <div class="principale">
     {articolo(apertura, "apertura")}
     <div class="spalle">{"".join(articolo(r, "spalla") for r in spalle)}</div>
   </div>
-  <aside class="sommario"><h2>In questo numero</h2><ol>{sommario}</ol></aside>
+  <aside class="sommario"><h2>In breve</h2><ol>{in_breve}</ol></aside>
 </section>"""
     else:
-        resto, prima = [], '<section class="vuota"><p>Nessuna notizia sopra la soglia oggi.</p></section>'
+        prima = '<section class="vuota"><p>Nessuna notizia sopra la soglia oggi.</p></section>'
 
     sezioni = ""
-    for chiave, nome in SEZIONI.items():
-        pezzi = [r for r in resto if r["sezione"] == chiave]
+    for chiave, nome in RUBRICHE.items():
+        pezzi = [r for r in resto if r["rubrica"] == chiave]
         if pezzi:
-            sezioni += (f'<section class="sezione"><h2 class="testatina"><span>{nome}</span></h2>'
+            sezioni += (f'<section class="sezione">{_testatina(nome)}'
                         f'<div class="colonne">{"".join(articolo(r) for r in pezzi)}</div></section>')
+    if repo:
+        sezioni += (f'<section class="sezione codice">{_testatina("Dal codice · repository nuovi della settimana")}'
+                    f'<div class="repos">{"".join(scheda_repo(r) for r in repo)}</div></section>')
+    if eventi:
+        sezioni += sezione_weekend(eventi)
+    elif ricerca:
+        sezioni += (f'<section class="sezione ricerca">{_testatina("Dalla ricerca")}'
+                    f'<div class="colonne">{"".join(articolo(r) for r in ricerca)}</div></section>')
 
     fondo = "".join(f'<li><span class="voto">{voto(r)}</span> <a href="{escape(r["url"])}">{escape(r["titolo"])}</a>'
-                    f'{pulsanti(r)}</li>' for r in scartati)
-    fondo = (f'<section class="fondo"><h2 class="testatina"><span>Rimasti fuori</span></h2>'
-             f'<p class="nota">Toccano il tuo profilo ma sono sotto {regole["soglia"]}/10 o oltre i primi '
-             f'{regole["massimo"]}. Se uno ti interessa, segnalalo: serve a tarare le parole chiave.</p><ol>{fondo}</ol></section>') if scartati else ""
+                    f' <span class="fonte">{escape(r["fonte"])}</span>{pulsanti(r)}</li>' for r in fuori)
+    fondo = (f'<section class="fondo">{_testatina("Rimasti fuori")}'
+             f'<p class="nota">Toccano il tuo profilo ma non sono entrati. Se uno ti interessa, segnalalo: '
+             f'serve a tarare le parole chiave.</p><ol>{fondo}</ol></section>') if fuori else ""
 
     return f"""<!doctype html>
 <html lang="it">
@@ -109,15 +187,17 @@ def pagina(con, data, regole):
 <div class="strumenti"><button onclick="print()">Stampa</button></div>
 <main class="foglio">
 <header class="testata">
-  <div class="orecchio">Letti {letti}<br>Pubblicati {len(pubblicati)}</div>
+  <div class="orecchio">Notizie {len(notizie) + len(brevi)}<br>Repository {len(repo)}<br>Ricerca {len(ricerca)}</div>
   <h1>Il Radar</h1>
-  <div class="orecchio destra">Tutte le notizie<br>che ti riguardano</div>
-  <p class="riga"><span>Anno {anno} · N. {numero}</span><span>{giorno}</span><span>Edizione del mattino</span></p>
+  {orecchio_meteo(con, data)}
+  <p class="riga"><span>Anno {anno} · N. {numero}</span><span>{giorno}</span><span>Tutte le notizie che ti riguardano</span></p>
 </header>
 {prima}
 {sezioni}
 {fondo}
-<footer class="colophon">Scelti dalle parole chiave del profilo · riassunti in locale da MiniCPM4.1 · nessun testo inviato a servizi esterni · fonte: arXiv (cs.AI, cs.LG, cs.CR)</footer>
+<footer class="colophon">Notizie: The Verge, TechCrunch, The Register, The Record, BleepingComputer, Ars Technica,
+Rest of World, Hacker News, Il Post, Agenda Digitale, Key4biz, Google News · codice: GitHub · ricerca: arXiv<br>
+Scelti dalle parole chiave del profilo · tradotti e riassunti in locale da MiniCPM4.1 · nessun testo inviato a servizi esterni</footer>
 </main>
 <script>{JS}</script>
 </body>
@@ -222,6 +302,80 @@ h3 { overflow-wrap: break-word; }
   .originale, .firma, .occhiello { font-size: 7.5pt; }
   .testatina { break-after: avoid; }
   a:hover { text-decoration: none; }
+}
+
+/* sommario diventato "In breve": la fonte sotto il titolo */
+.sommario li { grid-template-columns: auto 1fr; }
+.sommario li span { grid-column: 2; font: italic 400 13px/1.3 "Source Serif 4", serif; margin-top: -6px; }
+
+/* repository */
+.repos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.repo { padding: 0 18px 18px; border-left: 1px solid #0004; }
+.repo:nth-child(4n + 1) { border-left: 0; padding-left: 0; }
+.repo:nth-child(n + 5) { border-top: 1px solid #0003; padding-top: 16px; }
+.repo h3 { font: 400 19px/1.2 "Playfair Display", serif; margin: 4px 0 8px; overflow-wrap: anywhere; }
+.repo h3 b { font-weight: 900; }
+.repo .corpo { font-size: 15px; line-height: 1.4; }
+.fondo .fonte { font-style: italic; color: var(--grigio); font-size: 13px; }
+@media (max-width: 900px) { .repos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .repo:nth-child(4n + 1) { border-left: 1px solid #0004; padding-left: 18px; }
+  .repo:nth-child(2n + 1) { border-left: 0; padding-left: 0; }
+  .repo:nth-child(n + 3) { border-top: 1px solid #0003; padding-top: 16px; } }
+@media (max-width: 620px) { .repos { grid-template-columns: minmax(0, 1fr); }
+  .repo { border-left: 0 !important; padding-left: 0 !important; }
+  .repo:nth-child(n + 2) { border-top: 1px solid #0003; padding-top: 16px; } }
+@media print { .repos { grid-template-columns: repeat(4, minmax(0, 1fr)); } .repo { break-inside: avoid; }
+  .repo h3 { font-size: 11pt; } .repo .corpo { font-size: 8.5pt; } }
+
+/* meteo nell'orecchio destro */
+.orecchio.meteo { font-style: normal; font-variant: normal; line-height: 1.4; }
+.orecchio.meteo b { font-variant: small-caps; letter-spacing: .05em; font-weight: 600; }
+
+/* il weekend a Roma: quattro colonne di agenda */
+.agende { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.agenda { padding: 0 18px; border-left: 1px solid #0004; }
+.agenda:first-child { border-left: 0; padding-left: 0; }
+.agenda h3 { margin: 0 0 8px; font-size: 20px; }
+.agenda ol { margin: 0; padding: 0; list-style: none; }
+.agenda li { padding: 8px 0; border-top: 1px solid #0002; font: 400 15px/1.35 "Source Serif 4", serif; }
+.agenda li > span { display: block; font-style: italic; color: var(--grigio); font-size: 13px; }
+.agenda .giudizio button { padding: 4px 8px; font-size: 11px; }
+@media (max-width: 900px) { .agende { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 18px; }
+  .agenda:nth-child(3) { border-left: 0; padding-left: 0; } }
+@media (max-width: 620px) { .agende { grid-template-columns: minmax(0, 1fr); } .agenda { border-left: 0; padding-left: 0; } }
+
+/* stampa quotidiana: 2-3 fogli. Via ciò che serve solo a schermo, caratteri e spazi più stretti. */
+@page { size: A4; margin: 10mm 10mm; }
+@media print {
+  body { font-size: 8.8pt; line-height: 1.35; }
+  .perche, .originale, .repo .firma { display: none !important; }
+  .testata h1 { font-size: 46pt; padding: 2px 0 0; }
+  .orecchio { font-size: 7pt; padding: 4px 7px; }
+  .riga { font-size: 7.5pt; padding: 3px 0; }
+  .prima { padding: 10px 0; gap: 16px; }
+  .apertura h3 { font-size: 22pt; margin: 2px 0 4px; }
+  .apertura .corpo { font-size: 10.5pt; line-height: 1.35; }
+  .apertura .corpo::first-letter { font-size: 3em; padding: 3px 5px 0 0; }
+  .spalle { margin-top: 10px; padding-top: 8px; }
+  .spalla h3 { font-size: 12pt; }
+  .sommario h2 { font-size: 9pt; margin: 0 0 6px; }
+  .sommario li { font-size: 9pt; padding: 4px 0; gap: 6px; }
+  .sommario li span { font-size: 7.5pt; margin-top: -3px; }
+  .testatina { margin: 10px 0 8px; font-size: 8.5pt; }
+  .colonne { column-gap: 16px; }
+  .colonne article { padding-bottom: 7px; margin-bottom: 7px; }
+  .colonne h3 { font-size: 11pt; margin: 2px 0; }
+  .occhiello, .firma { font-size: 6.8pt; }
+  .corpo { margin: 0 0 3px; }
+  .repo { padding: 0 10px 8px; }
+  .repo:nth-child(n + 5) { padding-top: 8px; }
+  .repo h3 { font-size: 9.5pt; margin: 2px 0 3px; }
+  .repo .corpo { font-size: 8pt; line-height: 1.3; }
+  .agenda { padding: 0 10px; }
+  .agenda h3 { font-size: 10.5pt; margin-bottom: 4px; }
+  .agenda li { font-size: 8.3pt; padding: 3px 0; }
+  .agenda li > span { font-size: 6.8pt; }
+  .colophon { margin-top: 10px; font-size: 6.5pt; }
 }
 """
 
