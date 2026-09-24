@@ -26,7 +26,8 @@ def avvia(con, regole, apri=True):
 
         def do_GET(self):
             # "/" = ultima edizione; "/2026-09-24" = quella data
-            m = re.fullmatch(r"/(\d{4}-\d{2}-\d{2})?", self.path)
+            # "?carta" (anteprima di stampa) lo legge la pagina stessa: qui conta solo il percorso
+            m = re.fullmatch(r"/(\d{4}-\d{2}-\d{2})?", self.path.split("?", 1)[0])
             if not m:
                 return self.rispondi(404, b"non trovato")
             data = m[1] or con.execute("SELECT MAX(visto_il) FROM elementi WHERE ruolo IS NOT NULL").fetchone()[0] \

@@ -24,8 +24,16 @@ A mano:
 
 Tre parti, in quest'ordine sulla pagina: **notizie**, **repository GitHub**, **ricerca**. Il sabato e la
 domenica, al posto della ricerca, **il weekend a Roma e dintorni** (guide, musica, sagre, mostre). In testata
-il **meteo** del giorno (Open-Meteo). In stampa sta in 3 fogli A4: a schermo si vedono in più "Perché è qui",
-i titoli originali, i temi dei repository, i "Rimasti fuori" e i pulsanti.
+il **meteo** del giorno (Open-Meteo).
+
+**Stampa (2 fogli A4).** Notizie, repository e agenda del weekend sono flussi a colonne (le rubriche sono titoletti
+dentro il flusso), così non restano fasce mezze vuote; in carta i riassunti hanno un massimo di righe. Uno script
+nella pagina pareggia la prima pagina: sposta sotto l'apertura tante notizie quante servono perché la colonna
+di sinistra finisca insieme a "In breve", misurando nel formato in cui la pagina verrà vista. Prima di stampare
+la pagina passa alla classe `.carta` (larghezza e caratteri del foglio), misura, poi torna com'era.
+`http://127.0.0.1:8765/?carta` (pulsante "Anteprima di stampa") mostra la pagina come uscirà dalla stampante.
+In `giornale.py` le regole della carta (`CARTA`) sono scritte una volta e valgono sia in `@media print` sia sotto
+`html.carta`.
 
 1. **raccolta** (`radar/fonti.py`)
    - notizie: feed RSS di testate tech, cyber e di politica digitale (EN e IT) + ricerche mirate su Google News;

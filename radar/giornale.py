@@ -58,7 +58,7 @@ def articolo(r, classe=""):
                  if r["titolo_it"] and r["titolo_it"] != r["titolo"] else "")
     corpo = f'<p class="corpo">{escape(breve(r["riassunto"]))}</p>' if r["riassunto"] else ""
     return f"""
-<article class="{classe}" id="{escape(r['id'])}">
+<article class="{classe}" id="{escape(r['id'])}" data-punti="{r['punti']}">
   <p class="occhiello">{occhiello}</p>
   <h3><a href="{escape(r['url'])}">{escape(titolo)}</a></h3>
   {originale}{corpo}
@@ -151,12 +151,16 @@ def pagina(con, data, profilo):
     else:
         prima = '<section class="vuota"><p>Nessuna notizia sopra la soglia oggi.</p></section>'
 
-    sezioni = ""
+    # Tutte le altre notizie in un solo flusso di colonne, con le rubriche come titoletti dentro il flusso:
+    # niente fasce mezze vuote per una rubrica con un articolo solo. Il terzo più forte ha il titolo più grande.
+    forti = {r["id"] for r in sorted(resto, key=lambda r: -r["punti"])[:max(1, len(resto) // 3)]}
+    gruppi = ""
     for chiave, nome in RUBRICHE.items():
         pezzi = [r for r in resto if r["rubrica"] == chiave]
         if pezzi:
-            sezioni += (f'<section class="sezione">{_testatina(nome)}'
-                        f'<div class="colonne">{"".join(articolo(r) for r in pezzi)}</div></section>')
+            gruppi += (f'<div class="gruppo"><h2 class="rubrica">{nome}</h2>'
+                       f'{"".join(articolo(r, "forte" if r["id"] in forti else "") for r in pezzi)}</div>')
+    sezioni = f'<section class="sezione notizie"><div class="colonne">{gruppi}</div></section>' if gruppi else ""
     if repo:
         sezioni += (f'<section class="sezione codice">{_testatina("Dal codice · repository nuovi della settimana")}'
                     f'<div class="repos">{"".join(scheda_repo(r) for r in repo)}</div></section>')
@@ -184,7 +188,7 @@ def pagina(con, data, profilo):
 <style>{CSS}</style>
 </head>
 <body>
-<div class="strumenti"><button onclick="print()">Stampa</button></div>
+<div class="strumenti"><a href="?carta">Anteprima di stampa</a><button onclick="print()">Stampa</button></div>
 <main class="foglio">
 <header class="testata">
   <div class="orecchio">Notizie {len(notizie) + len(brevi)}<br>Repository {len(repo)}<br>Ricerca {len(ricerca)}</div>
@@ -204,7 +208,7 @@ Scelti dalle parole chiave del profilo · tradotti e riassunti in locale da Mini
 </html>"""
 
 
-CSS = """
+BASE = """
 :root { color-scheme: light; --inchiostro: #111; --grigio: #5a5a5a; --filetto: #111; --carta: #fff; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--carta); color: var(--inchiostro);
@@ -212,7 +216,10 @@ body { margin: 0; background: var(--carta); color: var(--inchiostro);
 a { color: inherit; text-decoration: none; }
 a:hover { text-decoration: underline; text-underline-offset: 2px; }
 .foglio { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
+h2, h3 { font-family: "Playfair Display", Georgia, serif; }
+h3 { overflow-wrap: break-word; }
 
+/* testata */
 .testata { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px;
   border-bottom: 1px solid var(--filetto); }
 .testata h1 { margin: 0; font: 400 clamp(52px, 10vw, 118px)/1 "UnifrakturMaguntia", serif; text-align: center;
@@ -220,44 +227,69 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 .orecchio { justify-self: start; border: 1px solid var(--filetto); padding: 6px 10px; font-size: 12px; line-height: 1.35;
   font-variant: small-caps; letter-spacing: .04em; }
 .orecchio.destra { justify-self: end; text-align: right; font-style: italic; font-variant: normal; }
+.orecchio.meteo { font-style: normal; line-height: 1.4; }
+.orecchio.meteo b { font-variant: small-caps; letter-spacing: .05em; font-weight: 600; }
 .riga { grid-column: 1 / -1; margin: 0; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
   border-top: 3px double var(--filetto); padding: 6px 0; font-size: 13px; text-transform: uppercase; letter-spacing: .12em; }
 
-h2, h3 { font-family: "Playfair Display", Georgia, serif; }
-.prima { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr); gap: 28px; padding: 22px 0; border-bottom: 3px double var(--filetto); }
+/* prima pagina: apertura + spalle a sinistra, "In breve" a destra (le altezze le pareggia lo script) */
+.prima { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr); gap: 28px; align-items: start;
+  padding: 22px 0; border-bottom: 3px double var(--filetto); }
 .apertura h3 { font-size: clamp(30px, 4.4vw, 50px); line-height: 1.05; font-weight: 900; margin: 6px 0 8px; }
 .apertura .originale { font-size: 16px; }
-.apertura .corpo { font-size: 20px; line-height: 1.45; }
+.apertura .corpo { font-size: 20px; line-height: 1.45; text-align: justify; hyphens: auto; }
 .apertura .corpo::first-letter { float: left; font: 900 3.4em/.8 "Playfair Display", serif; padding: 6px 8px 0 0; }
-.spalle { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-top: 22px; padding-top: 18px;
+.spalle { column-count: 2; column-gap: 28px; column-rule: 1px solid #0004; margin-top: 22px; padding-top: 18px;
   border-top: 1px solid var(--filetto); }
 .spalle:empty { display: none; }
-.spalla + .spalla { border-left: 1px solid #0004; padding-left: 24px; margin-left: 24px; }
+.spalle article { break-inside: avoid; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid #0003; }
 .spalla h3 { font-size: 24px; line-height: 1.12; margin: 4px 0 6px; }
 .sommario { border-left: 1px solid var(--filetto); padding-left: 24px; }
 .sommario h2 { margin: 4px 0 12px; font-size: 15px; text-transform: uppercase; letter-spacing: .14em; }
 .sommario ol { margin: 0; padding: 0; list-style: none; counter-reset: s; }
-.sommario li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; padding: 9px 0; border-top: 1px solid #0003;
+.sommario li { display: grid; grid-template-columns: auto 1fr; gap: 0 10px; padding: 9px 0; border-top: 1px solid #0003;
   font: 400 16px/1.3 "Playfair Display", serif; counter-increment: s; }
 .sommario li::before { content: counter(s); font-weight: 700; }
-.sommario li span { font: 600 13px/1.6 "Source Serif 4", serif; color: var(--grigio); }
+.sommario li span { grid-column: 2; font: italic 400 13px/1.3 "Source Serif 4", serif; color: var(--grigio); }
 
+/* flussi a colonne: notizie, ricerca. Il browser riempie le colonne una dopo l'altra, senza buchi. */
 .testatina { display: flex; align-items: center; gap: 14px; margin: 26px 0 16px; font-size: 14px;
   text-transform: uppercase; letter-spacing: .2em; }
 .testatina::before, .testatina::after { content: ""; flex: 1; border-top: 1px solid var(--filetto); }
+.notizie { padding-top: 22px; }
 .colonne { column-count: 3; column-gap: 28px; column-rule: 1px solid #0004; }
 .colonne article { break-inside: avoid; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid #0003; }
-.colonne h3 { font-size: 22px; line-height: 1.15; margin: 4px 0 4px; }
+.colonne h3 { font-size: 20px; line-height: 1.15; margin: 4px 0; }
+.colonne .forte h3 { font-size: 27px; font-weight: 900; line-height: 1.08; }
+.rubrica { margin: 0 0 12px; padding: 5px 0 4px; border-top: 3px double var(--filetto); border-bottom: 1px solid var(--filetto);
+  font: 600 13px/1.2 "Source Serif 4", serif; text-transform: uppercase; letter-spacing: .18em; text-align: center;
+  break-after: avoid; }
+.gruppo[hidden] { display: none; }
 
 .occhiello { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--grigio); }
 .originale { margin: 0 0 8px; font-style: italic; font-size: 14px; color: var(--grigio); line-height: 1.35; }
 .corpo { margin: 0 0 8px; }
-.apertura .corpo { text-align: justify; hyphens: auto; }
-h3 { overflow-wrap: break-word; }
 .perche { margin: 0 0 8px; font-style: italic; }
 .perche span { font-style: normal; font-weight: 600; font-variant: small-caps; letter-spacing: .03em; }
 .firma { margin: 0; font-size: 13px; font-variant: small-caps; letter-spacing: .03em; color: var(--grigio); }
 
+/* repository: anche loro in flusso (a griglia ogni riga era alta quanto la scheda più lunga) */
+.repos { column-count: 4; column-gap: 24px; column-rule: 1px solid #0004; }
+.repo { break-inside: avoid; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid #0003; }
+.repo h3 { font: 400 19px/1.2 "Playfair Display", serif; margin: 4px 0 8px; overflow-wrap: anywhere; }
+.repo h3 b { font-weight: 900; }
+.repo .corpo { font-size: 15px; line-height: 1.4; }
+
+/* il weekend a Roma: le quattro rubriche scorrono in colonna una dopo l'altra */
+.agende { column-count: 4; column-gap: 24px; column-rule: 1px solid #0004; }
+.agenda h3 { margin: 0 0 6px; font-size: 20px; break-after: avoid; }
+.agenda h3:not(:first-child), .agenda + .agenda h3 { margin-top: 14px; }
+.agenda ol { margin: 0; padding: 0; list-style: none; }
+.agenda li { break-inside: avoid; padding: 8px 0; border-top: 1px solid #0002; font: 400 15px/1.35 "Source Serif 4", serif; }
+.agenda li > span { display: block; font-style: italic; color: var(--grigio); font-size: 13px; }
+.agenda .giudizio button { padding: 4px 8px; font-size: 11px; }
+
+/* pulsanti e giudizi */
 .giudizio { display: flex; gap: 8px; margin-top: 10px; }
 .giudizio button { font: 600 12px/1 "Source Serif 4", serif; letter-spacing: .06em; text-transform: uppercase;
   background: none; color: var(--inchiostro); border: 1px solid var(--filetto); padding: 7px 10px; cursor: pointer; }
@@ -268,119 +300,98 @@ h3 { overflow-wrap: break-word; }
 .fondo ol { margin: 0; padding: 0; list-style: none; columns: 2; column-gap: 28px; column-rule: 1px solid #0004; }
 .fondo li { break-inside: avoid; padding: 8px 0; border-top: 1px solid #0002; font-size: 15px; line-height: 1.35; }
 .fondo .voto { display: inline-block; min-width: 1.6em; font-weight: 600; }
+.fondo .fonte { font-style: italic; color: var(--grigio); font-size: 13px; }
 .fondo .giudizio { margin-top: 6px; }
 .fondo .giudizio button { padding: 4px 8px; font-size: 11px; }
 .vuota { padding: 60px 0; text-align: center; font-style: italic; border-bottom: 3px double var(--filetto); }
 .colophon { margin-top: 32px; padding-top: 8px; border-top: 1px solid var(--filetto); font-size: 12px; text-align: center;
   letter-spacing: .08em; text-transform: uppercase; color: var(--grigio); }
-
-.strumenti { position: fixed; top: 12px; right: 12px; z-index: 1; }
-.strumenti button { font: 600 13px "Source Serif 4", serif; letter-spacing: .08em; text-transform: uppercase;
+.strumenti { position: fixed; top: 12px; right: 12px; z-index: 1; display: flex; gap: 8px; }
+.strumenti button, .strumenti a { font: 600 13px "Source Serif 4", serif; letter-spacing: .08em; text-transform: uppercase;
   background: var(--carta); color: var(--inchiostro); border: 1px solid var(--filetto); padding: 8px 12px; cursor: pointer; }
-
-@media (max-width: 900px) { .colonne { column-count: 2; } .prima { grid-template-columns: minmax(0, 1fr); }
-  .sommario { border-left: 0; border-top: 1px solid var(--filetto); padding: 12px 0 0; } }
-@media (max-width: 620px) { .colonne, .fondo ol { column-count: 1; } .testata { grid-template-columns: minmax(0, 1fr); }
-  .spalle { grid-template-columns: minmax(0, 1fr); }
-  .spalla + .spalla { border-left: 0; padding-left: 0; margin-left: 0; border-top: 1px solid #0003; padding-top: 14px; margin-top: 14px; }
-  .orecchio { display: none; } .apertura .corpo { text-align: left; } .riga { justify-content: center; } .strumenti { position: static; text-align: right; padding: 8px 16px 0; } }
-
-@page { size: A4; margin: 12mm 11mm; }
-@media print {
-  body { font-size: 9.5pt; }
-  .strumenti, .giudizio, .fondo { display: none !important; }
-  .foglio { max-width: none; padding: 0; }
-  .testata h1 { font-size: 64pt; }
-  .orecchio { display: block; font-size: 7.5pt; }
-  .apertura h3 { font-size: 28pt; }
-  .apertura .corpo { font-size: 12pt; }
-  .prima { grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr); }
-  .spalla h3 { font-size: 14pt; }
-  .sommario li { font-size: 10pt; padding: 5px 0; }
-  .colonne { column-count: 3; }
-  .colonne h3 { font-size: 13pt; }
-  .originale, .firma, .occhiello { font-size: 7.5pt; }
-  .testatina { break-after: avoid; }
-  a:hover { text-decoration: none; }
+@media screen {      /* l'anteprima ?carta sembra un foglio; in stampa questo non serve */
+  .carta body { background: #e8e8e8; }
+  .carta .foglio { background: var(--carta); box-shadow: 0 0 0 10mm var(--carta); margin: 16mm auto; }
 }
 
-/* sommario diventato "In breve": la fonte sotto il titolo */
-.sommario li { grid-template-columns: auto 1fr; }
-.sommario li span { grid-column: 2; font: italic 400 13px/1.3 "Source Serif 4", serif; margin-top: -6px; }
-
-/* repository */
-.repos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.repo { padding: 0 18px 18px; border-left: 1px solid #0004; }
-.repo:nth-child(4n + 1) { border-left: 0; padding-left: 0; }
-.repo:nth-child(n + 5) { border-top: 1px solid #0003; padding-top: 16px; }
-.repo h3 { font: 400 19px/1.2 "Playfair Display", serif; margin: 4px 0 8px; overflow-wrap: anywhere; }
-.repo h3 b { font-weight: 900; }
-.repo .corpo { font-size: 15px; line-height: 1.4; }
-.fondo .fonte { font-style: italic; color: var(--grigio); font-size: 13px; }
-@media (max-width: 900px) { .repos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .repo:nth-child(4n + 1) { border-left: 1px solid #0004; padding-left: 18px; }
-  .repo:nth-child(2n + 1) { border-left: 0; padding-left: 0; }
-  .repo:nth-child(n + 3) { border-top: 1px solid #0003; padding-top: 16px; } }
-@media (max-width: 620px) { .repos { grid-template-columns: minmax(0, 1fr); }
-  .repo { border-left: 0 !important; padding-left: 0 !important; }
-  .repo:nth-child(n + 2) { border-top: 1px solid #0003; padding-top: 16px; } }
-@media print { .repos { grid-template-columns: repeat(4, minmax(0, 1fr)); } .repo { break-inside: avoid; }
-  .repo h3 { font-size: 11pt; } .repo .corpo { font-size: 8.5pt; } }
-
-/* meteo nell'orecchio destro */
-.orecchio.meteo { font-style: normal; font-variant: normal; line-height: 1.4; }
-.orecchio.meteo b { font-variant: small-caps; letter-spacing: .05em; font-weight: 600; }
-
-/* il weekend a Roma: quattro colonne di agenda */
-.agende { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.agenda { padding: 0 18px; border-left: 1px solid #0004; }
-.agenda:first-child { border-left: 0; padding-left: 0; }
-.agenda h3 { margin: 0 0 8px; font-size: 20px; }
-.agenda ol { margin: 0; padding: 0; list-style: none; }
-.agenda li { padding: 8px 0; border-top: 1px solid #0002; font: 400 15px/1.35 "Source Serif 4", serif; }
-.agenda li > span { display: block; font-style: italic; color: var(--grigio); font-size: 13px; }
-.agenda .giudizio button { padding: 4px 8px; font-size: 11px; }
-@media (max-width: 900px) { .agende { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 18px; }
-  .agenda:nth-child(3) { border-left: 0; padding-left: 0; } }
-@media (max-width: 620px) { .agende { grid-template-columns: minmax(0, 1fr); } .agenda { border-left: 0; padding-left: 0; } }
-
-/* stampa quotidiana: 2-3 fogli. Via ciò che serve solo a schermo, caratteri e spazi più stretti. */
-@page { size: A4; margin: 10mm 10mm; }
-@media print {
-  body { font-size: 8.8pt; line-height: 1.35; }
-  .perche, .originale, .repo .firma { display: none !important; }
-  .testata h1 { font-size: 46pt; padding: 2px 0 0; }
-  .orecchio { font-size: 7pt; padding: 4px 7px; }
-  .riga { font-size: 7.5pt; padding: 3px 0; }
-  .prima { padding: 10px 0; gap: 16px; }
-  .apertura h3 { font-size: 22pt; margin: 2px 0 4px; }
-  .apertura .corpo { font-size: 10.5pt; line-height: 1.35; }
-  .apertura .corpo::first-letter { font-size: 3em; padding: 3px 5px 0 0; }
-  .spalle { margin-top: 10px; padding-top: 8px; }
-  .spalla h3 { font-size: 12pt; }
-  .sommario h2 { font-size: 9pt; margin: 0 0 6px; }
-  .sommario li { font-size: 9pt; padding: 4px 0; gap: 6px; }
-  .sommario li span { font-size: 7.5pt; margin-top: -3px; }
-  .testatina { margin: 10px 0 8px; font-size: 8.5pt; }
-  .colonne { column-gap: 16px; }
-  .colonne article { padding-bottom: 7px; margin-bottom: 7px; }
-  .colonne h3 { font-size: 11pt; margin: 2px 0; }
-  .occhiello, .firma { font-size: 6.8pt; }
-  .corpo { margin: 0 0 3px; }
-  .repo { padding: 0 10px 8px; }
-  .repo:nth-child(n + 5) { padding-top: 8px; }
-  .repo h3 { font-size: 9.5pt; margin: 2px 0 3px; }
-  .repo .corpo { font-size: 8pt; line-height: 1.3; }
-  .agenda { padding: 0 10px; }
-  .agenda h3 { font-size: 10.5pt; margin-bottom: 4px; }
-  .agenda li { font-size: 8.3pt; padding: 3px 0; }
-  .agenda li > span { font-size: 6.8pt; }
-  .colophon { margin-top: 10px; font-size: 6.5pt; }
+/* schermi stretti: solo a schermo e non nell'anteprima di stampa (un A4 è largo ~720px e le prenderebbe) */
+@media screen and (max-width: 900px) {
+  html:not(.carta) .colonne, html:not(.carta) .agende, html:not(.carta) .repos { column-count: 2; }
+  html:not(.carta) .prima { grid-template-columns: minmax(0, 1fr); }
+  html:not(.carta) .sommario { border-left: 0; border-top: 1px solid var(--filetto); padding: 12px 0 0; }
+}
+@media screen and (max-width: 620px) {
+  html:not(.carta) .colonne, html:not(.carta) .agende, html:not(.carta) .repos,
+  html:not(.carta) .spalle, html:not(.carta) .fondo ol { column-count: 1; }
+  html:not(.carta) .testata { grid-template-columns: minmax(0, 1fr); }
+  html:not(.carta) .orecchio { display: none; }
+  html:not(.carta) .apertura .corpo { text-align: left; }
+  html:not(.carta) .riga { justify-content: center; }
+  html:not(.carta) .strumenti { position: static; justify-content: flex-end; padding: 8px 16px 0; }
 }
 """
 
+# Regole della carta: valgono in stampa e, con la classe .carta, nell'anteprima e mentre lo script misura.
+# Scritte una volta sola: CSS le ripete sotto @media print e con il prefisso html.carta.
+CARTA = """
+body { font-size: 8.8pt; line-height: 1.35; }
+.strumenti, .giudizio, .fondo, .perche, .originale, .repo .firma { display: none !important; }
+.foglio { max-width: none; width: 190mm; padding: 0; }
+.testata h1 { font-size: 46pt; padding: 2px 0 0; }
+.orecchio { font-size: 7pt; padding: 4px 7px; }
+.riga { font-size: 7.5pt; padding: 3px 0; }
+.prima { padding: 8px 0; gap: 14px; }
+.apertura h3 { font-size: 22pt; margin: 2px 0 4px; }
+.apertura .corpo { font-size: 10.5pt; line-height: 1.35; }
+.apertura .corpo::first-letter { font-size: 3em; padding: 3px 5px 0 0; }
+.spalle { margin-top: 8px; padding-top: 6px; column-gap: 14px; }
+.spalle article { padding-bottom: 5px; margin-bottom: 5px; }
+.spalla h3 { font-size: 12pt; }
+.sommario { padding-left: 14px; }
+.sommario h2 { font-size: 9pt; margin: 0 0 4px; }
+.sommario li { font-size: 9pt; padding: 3px 0; gap: 0 6px; }
+.sommario li span { font-size: 7.5pt; }
+.testatina { margin: 8px 0 6px; font-size: 8.5pt; }
+.notizie { padding-top: 8px; }
+.colonne { column-gap: 14px; }
+.colonne article { padding-bottom: 5px; margin-bottom: 5px; }
+.colonne h3 { font-size: 10.5pt; margin: 1px 0 2px; }
+.colonne .forte h3 { font-size: 13pt; }
+.rubrica { font-size: 7.5pt; margin-bottom: 5px; padding: 3px 0 2px; }
+.occhiello, .firma { font-size: 6.8pt; }
+.corpo { margin: 0 0 2px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+.forte .corpo, .spalla .corpo { -webkit-line-clamp: 6; }
+.apertura .corpo { display: block; }
+.repos { column-gap: 12px; }
+.repo { padding-bottom: 5px; margin-bottom: 5px; }
+.repo h3 { font-size: 9.5pt; margin: 1px 0 2px; }
+.repo .corpo { font-size: 8pt; line-height: 1.3; -webkit-line-clamp: 3; }
+.agende { column-count: 3; column-gap: 12px; }
+.agenda h3 { font-size: 10pt; margin-bottom: 3px; }
+.agenda h3:not(:first-child), .agenda + .agenda h3 { margin-top: 6px; }
+.agenda li { font-size: 8.3pt; padding: 3px 0; }
+.agenda li > span { font-size: 6.8pt; }
+.colophon { margin-top: 8px; font-size: 6.5pt; }
+a:hover { text-decoration: none; }
+"""
+
+
+def _in_carta(regole):
+    """'a, b { ... }' -> 'html.carta a, html.carta b { ... }'"""
+    return re.sub(r"([^{}]+)\{", lambda m: ", ".join("html.carta " + s.strip() for s in m[1].split(",")) + " {",
+                  regole)
+
+
+CSS = BASE + "\n@page { size: A4; margin: 10mm; }\n@media print {" + CARTA + "}\n" + _in_carta(CARTA)
+
 JS = """
-if (location.protocol === "file:") document.documentElement.classList.add("statico");
+const radice = document.documentElement;
+if (location.protocol === "file:") radice.classList.add("statico");
+const anteprima = new URLSearchParams(location.search).has("carta");     // ?carta: la pagina come uscirà in stampa
+radice.classList.toggle("carta", anteprima);
+const verso = document.querySelector(".strumenti a");
+if (verso && anteprima) { verso.href = location.pathname; verso.textContent = "Torna al giornale"; }
+
 document.addEventListener("click", async (ev) => {
   const b = ev.target.closest(".giudizio button");
   if (!b) return;
@@ -389,4 +400,46 @@ document.addEventListener("click", async (ev) => {
     body: JSON.stringify({ id: box.dataset.id, g }) });
   if (r.ok) box.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(+x.dataset.g === g)));
 });
+
+// ── impaginazione dinamica ──
+// "In breve" (a destra) è di solito più lungo di apertura + spalle (a sinistra). Si spostano sotto l'apertura,
+// dalle più forti, tante notizie del flusso quante servono a pareggiare le due colonne: si provano 0..8 e si
+// tiene il numero che lascia meno vuoto. Le misure si prendono nel modo in cui la pagina verrà vista:
+// prima di stampare la pagina passa in .carta (larghezza e caratteri del foglio A4), poi torna com'era.
+const principale = document.querySelector(".principale"), sommario = document.querySelector(".sommario");
+const spalle = document.querySelector(".spalle");
+const gruppi = [...document.querySelectorAll(".notizie .gruppo")].map((g) => [g, [...g.querySelectorAll("article")]]);
+
+function rimetti() {
+  for (const [g, articoli] of gruppi) {
+    g.hidden = false;
+    for (const a of articoli) { a.classList.remove("spalla", "tirata"); g.appendChild(a); }
+  }
+}
+
+function tira(articoli) {
+  for (const a of articoli) { a.classList.add("spalla", "tirata"); spalle.appendChild(a); }
+  for (const [g] of gruppi) g.hidden = !g.querySelector("article");
+}
+
+function bilancia() {
+  if (!principale || !sommario || !spalle) return;
+  rimetti();
+  if (sommario.offsetTop > principale.offsetTop + 10) return;          // una sotto l'altra (schermo stretto)
+  const candidati = gruppi.flatMap(([, a]) => a).sort((x, y) => y.dataset.punti - x.dataset.punti).slice(0, 8);
+  const vuoto = () => Math.abs(sommario.offsetHeight - principale.offsetHeight);
+  let migliore = { vuoto: vuoto(), quanti: 0 };
+  candidati.forEach((a, i) => {
+    tira([a]);
+    if (vuoto() < migliore.vuoto) migliore = { vuoto: vuoto(), quanti: i + 1 };
+  });
+  rimetti();
+  tira(candidati.slice(0, migliore.quanti));
+}
+
+let attesa;
+addEventListener("resize", () => { clearTimeout(attesa); attesa = setTimeout(bilancia, 150); });
+addEventListener("beforeprint", () => { radice.classList.add("carta"); bilancia(); });
+addEventListener("afterprint", () => { radice.classList.toggle("carta", anteprima); bilancia(); });
+document.fonts.ready.then(bilancia);
 """
