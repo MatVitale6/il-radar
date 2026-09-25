@@ -17,8 +17,8 @@ Solo libreria standard Python. Niente testo esce dal PC.
   voce Wi-Fi). Perché il telefono arrivi al PC: server su `0.0.0.0` + `strumenti/rete-di-casa.ps1` (da
   amministratore: Wi-Fi di casa "Privata" e porta 8765 aperta solo sulle reti private e alla rete locale). Con
   NordVPN attiva serve l'opzione che lascia visibili i dispositivi della rete locale.
-- **Stampa**: il pulsante *Stampa* della pagina (anche dal telefono) passa dall'anteprima di stampa e poi apre la
-  stampa del browser. *Anteprima di stampa* (`?carta`) mostra i due fogli come usciranno.
+- **Stampa**: il pulsante *Stampa* della pagina (anche dal telefono) apre la stampa del browser. *Anteprima di
+  stampa* (`?carta`) mostra i fogli A4 come usciranno.
 
 A mano:
 
@@ -37,13 +37,24 @@ due colonne per tutta l'altezza, come un quotidiano:
   anche *Il weekend a Roma e dintorni* (guide, musica, sagre, mostre).
 - **a destra (1/4)**: i titoli — In breve, Italia, Estero, Sport, Dalla ricerca.
 
-**Sempre 2 fogli.** Sulla carta (stampa e anteprima) uno script misura il giornale nel formato del foglio e,
-finché supera i due fogli: se è più lunga la colonna principale, l'articolo più debole (prima lo sport, poi le
-notizie) diventa un titolo in barra; se è più lunga la barra, si tolgono i titoli dal fondo (ricerca, attualità,
-sport, brevi). I riassunti non si accorciano mai. In stampa non compaiono le intestazioni del browser: il margine
-del foglio è zero e i 10 mm li dà il giornale stesso, ripetuti su ogni pagina (`box-decoration-break: clone`).
-In `giornale.py` le regole della carta (`CARTA`) sono scritte una volta e valgono sia in `@media print` sia sotto
-`html.carta`.
+**Stampa: al massimo 2 fogli A4.** I fogli li costruisce lo script della pagina, non il browser. Appena la pagina
+è aperta (e caricati i caratteri) lo script misura ogni articolo e lo dispone a mano nelle colonne di due fogli da
+210×296 mm (2 colonne + barra dei titoli per foglio), in ordine e senza spezzare un articolo. I fogli restano
+nascosti a schermo e si mostrano in stampa e nell'anteprima `?carta`, quindi anche il Ctrl+P del browser li trova
+pronti. Perché non lasciar fare al browser: Firefox (il browser predefinito) non spezza una griglia o un blocco a
+colonne tra due pagine e lo sposta intero sulla successiva, lasciando la prima con la sola testata; Edge e Chrome
+lo spezzano. Con fogli a misura fissa non c'è niente da spezzare e il risultato è identico ovunque.
+
+- se il flusso non sta in due fogli, l'articolo meno importante (prima lo sport, poi le notizie) diventa un titolo
+  nella barra e si riprova; i riassunti non si accorciano mai
+- la barra dei titoli si riempie foglio dopo foglio; i titoli che non ci stanno vanno in coda alle colonne
+  dell'ultimo foglio, negli spazi bianchi lasciati dagli articoli interi; quelli che non entrano nemmeno lì
+  non si stampano (prima la ricerca, poi l'estero, l'Italia, lo sport)
+- se le notizie stanno in un foglio solo e restano fuori al massimo 2 titoli, si stampa un foglio solo
+- il margine del foglio (`@page`) è zero, così il browser non stampa titolo, data e indirizzo; i 10 mm li dà `.pagina`
+- per provare la stampa nel browser dell'utente: `py strumenti/stampa_firefox.py <url> <file.pdf>` (Firefox senza
+  finestra, profilo temporaneo, protocollo Marionette); `data-fogli` sulla radice della pagina dice quanti fogli,
+  quanti articoli declassati e quanti titoli persi
 
 ## Come funziona
 
