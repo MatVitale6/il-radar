@@ -6,8 +6,8 @@
 """
 import datetime as dt
 import json
-import math
 import re
+import subprocess
 import sys
 import time
 import tomllib
@@ -29,8 +29,9 @@ RIASSUNTO: una o due frasi in italiano, massimo 40 parole, su cosa è successo, 
 SOLO_TITOLO = """Sei un redattore italiano. Traduci in italiano questo titolo di giornale inglese,
 fedelmente, in stile giornalistico, massimo 12 parole. Nomi propri e di prodotti restano come sono.
 Rispondi solo con il titolo tradotto."""
-DESCRIZIONE = """Sei un redattore italiano. Traduci in italiano la descrizione di questo progetto software,
-in una frase di massimo 25 parole. Nomi propri e termini tecnici restano come sono. Rispondi solo con la traduzione."""
+SPIEGA = """Sei un redattore tecnico italiano. Ricevi nome, descrizione e inizio del README di un progetto software.
+In due o tre frasi in italiano (massimo 60 parole) spiega cos'è e a cosa serve, per uno sviluppatore, usando SOLO
+le informazioni ricevute. Nomi propri e termini tecnici restano come sono. Rispondi solo con la spiegazione."""
 
 
 def _riga(risposta, etichetta):
@@ -47,15 +48,17 @@ def _prima_riga(s):
 
 
 CINESE = re.compile(r"[⺀-鿿가-힯＀-￯]")
+RIPETUTA = re.compile(r"(\b\S+)(?:\s+\1\b){3,}", re.I)      # la stessa parola 4 volte di fila: il modello è in ciclo
 
 
 def _in_italiano(sistema, testo):
     """MiniCPM è addestrato molto sul cinese e ogni tanto ci ricade ("la trasparenza dei数据中心"):
     si riprova una volta chiedendolo esplicitamente, poi si rinuncia (chi chiama tiene l'originale)."""
     risposta = llm.scrivi(sistema, testo)
-    if CINESE.search(risposta):
-        risposta = llm.scrivi(sistema + "\nScrivi solo in italiano, con l'alfabeto latino: nessun carattere cinese.", testo)
-    return "" if CINESE.search(risposta) else risposta
+    if CINESE.search(risposta) or RIPETUTA.search(risposta):
+        risposta = llm.scrivi(sistema + "\nScrivi solo in italiano, con l'alfabeto latino: nessun carattere cinese,"
+                              " nessuna parola ripetuta.", testo)
+    return "" if CINESE.search(risposta) or RIPETUTA.search(risposta) else risposta
 
 
 # ── punteggio ─────────────────────────────────────────────────────────────────
@@ -89,12 +92,47 @@ def valuta_notizia(e):
     return punti, _elenco(*gruppi.values()), max(somme, key=somme.get)
 
 
-def valuta_repo(e):
-    extra = json.loads(e["extra"])
-    testo = " ".join([e["titolo"].replace("/", " "), e["testo"], " ".join(extra["temi"])])
-    parole = trovate(testo.replace("-", " "), PROFILO["ricerca"]["parole"])
-    punti = int(math.log2(extra["stelle"] + 1)) + sum(parole.values())
-    return punti, _elenco(parole) or ", ".join(extra["temi"][:4]), None
+SPORT_DI = {"tennis": ("tennis", "ATP", "WTA"), "pallavolo": ("pallavolo", "volley", "Superlega"),
+            "ciclismo": ("ciclismo", "granfondo", "Giro d'Italia", "Tour de France", "Vuelta")}
+GARE_ROMA = {"podistic*": 1, "corsa": 1, "maratona": 1, "mezza maratona": 1, "granfondo": 1, "10 km": 1}
+
+
+def valuta_sport(e):
+    cfg, testo = PROFILO["sport"], e["titolo"] + " \n " + e["testo"]
+    discipline = trovate(testo, cfg["discipline"])
+    if not discipline:
+        return 0, "", None                                      # non è uno degli sport che segui
+    # importanza e italiani dal solo titolo: un'intervista che nel testo cita "oro, Mondiali, Jacobs" non è un record
+    importanza = trovate(e["titolo"], cfg["importanza"])
+    italiani = [n for n in cfg["italiani"] if re.search(rf"\b{re.escape(n)}\b", e["titolo"])]
+    punti = (sum(discipline.values()) + sum(importanza.values()) + 3 * bool(italiani) + e["peso"]
+             + sum(trovate(testo, cfg["giu"]).values()))
+    if re.search(r"\bRoma\b", e["titolo"]) and trovate(testo, GARE_ROMA):
+        rubrica = "roma"                                        # gare amatoriali a Roma
+    else:
+        rubrica = next((s for s, chiavi in SPORT_DI.items() if any(k in discipline for k in chiavi)), "atletica")
+    return punti, _elenco(importanza, discipline, dict.fromkeys(italiani, 3)), rubrica
+
+
+PARTICIPIO = re.compile(r"\b\w{3,}(?:at|it|ut)[oaie]\b", re.I)          # "approvato", "perquisiti", "intitolato"
+DICHIARAZIONE = re.compile(r"^[^,:'\"«“]{2,40}[,:]\s*['\"«“‘]")        # "Meloni, 'studenti...'": un'opinione
+
+
+def valuta_attualita(e, zona):
+    """Solo fatti avvenuti: nel titolo un verbo di fatto compiuto (o un participio passato), nessuna parola di
+    ipotesi, niente domande, niente titoli che sono solo una dichiarazione tra virgolette."""
+    cfg, titolo = PROFILO["attualita"], e["titolo"]
+    uno = lambda parole: dict.fromkeys(parole, 1)
+    if zona == "auto":
+        zona = "estero" if any(re.search(r"mondo|ester", c, re.I) for c in e["categorie"]) else "italia"
+    if trovate(titolo + " " + e["testo"], uno(cfg["escludi"])) or any(
+            re.search(r"sport|calcio", c, re.I) for c in e["categorie"]):
+        return 0, "", zona
+    certe = list(trovate(titolo, uno(cfg["certo"]))) + PARTICIPIO.findall(titolo)
+    if e["fonte"] != "ISTAT" and ("?" in titolo or trovate(titolo, uno(cfg["incerto"]))
+                                  or DICHIARAZIONE.search(titolo) or not certe):
+        return 0, "", zona                                      # ipotesi, discussioni, domande, opinioni: fuori
+    return min(len(certe), 3) + e["peso"], ", ".join(certe[:4]) or "report", zona
 
 
 def valuta_articolo(e):
@@ -167,16 +205,75 @@ def raccogli_notizie(con, oggi):
     print(f"notizie: {nuove} nuove, {doppie} doppioni riuniti", flush=True)
 
 
+def _crescita(con, r, oggi):
+    """Stelle guadagnate in 7 giorni: misurate sullo storico, se c'è almeno un giorno prima di oggi;
+    altrimenti stimate dalla media di stelle al giorno dalla nascita del repository."""
+    giorno = dt.date.fromisoformat(oggi)
+    prima = con.execute("SELECT data, stelle FROM stelle WHERE repo=? AND data>=? AND data<? ORDER BY data LIMIT 1",
+                        (r["nome"], (giorno - dt.timedelta(days=7)).isoformat(), oggi)).fetchone()
+    if prima:
+        giorni = (giorno - dt.date.fromisoformat(prima[0])).days
+        return round((r["stelle"] - prima[1]) * 7 / giorni), True
+    return round(r["stelle"] * 7 / max(1, (giorno - dt.date.fromisoformat(r["creato"])).days)), False
+
+
 def raccogli_repo(con, oggi):
-    nuovi = 0
+    g, visti = PROFILO["github"], 0
     try:
-        for e in fonti.github(PROFILO["github"]["temi"], PROFILO["github"]["giorni"]):
-            punti, parole, _ = valuta_repo(e)
-            nuovi += _inserisci(con, e, oggi, punti, parole, None)
+        for r in fonti.github_forti(g["temi"], g["stelle_min"], g["attivi_giorni"]):
+            con.execute("INSERT OR REPLACE INTO stelle VALUES (?, ?, ?)", (r["nome"], oggi, r["stelle"]))
+            settimana, misurata = _crescita(con, r, oggi)
+            e = {"id": f"github:{r['nome'].lower()}:{oggi}", "fonte": "GitHub", "sezione": "github",
+                 "titolo": r["nome"], "url": r["url"], "testo": r["descrizione"], "autori": r["nome"].split("/")[0],
+                 "lingua": "en", "uscito": r["creato"],
+                 "extra": json.dumps({"stelle": r["stelle"], "linguaggio": r["linguaggio"], "temi": r["temi"],
+                                      "settimana": settimana, "misurata": misurata})}
+            visti += _inserisci(con, e, oggi, settimana, r["tema"], r["tema"])   # un repo, un giorno, un tema
     except Exception as err:
         print(f"  GitHub saltato ({err})", flush=True)
     con.commit()
-    print(f"repository: {nuovi} nuovi", flush=True)
+    print(f"repository osservati oggi: {visti}", flush=True)
+
+
+def _raccogli_feed(con, oggi, sezione, elenco, ore, valuta):
+    """Per sport e attualità: come le notizie, con i doppioni riuniti per titolo (e un punto per testata in più)."""
+    limite = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=ore)
+    tre_giorni = (dt.date.fromisoformat(oggi) - dt.timedelta(days=3)).isoformat()
+    storie = [(r["id"], r["visto_il"], _impronta(r["titolo"])) for r in con.execute(
+        "SELECT id, visto_il, titolo FROM elementi WHERE sezione=? AND visto_il >= ?", (sezione, tre_giorni))]
+    nuove = 0
+    for nome, url, lingua, peso, *zona in elenco:
+        try:
+            voci = list(fonti.feed(nome, url, lingua, peso))
+        except Exception as err:
+            print(f"  fonte saltata: {nome} ({err})", flush=True)
+            continue
+        for e in voci:
+            e["sezione"] = sezione
+            if (e["uscito"] and dt.datetime.fromisoformat(e["uscito"]) < limite) or \
+                    con.execute("SELECT 1 FROM elementi WHERE id=?", (e["id"],)).fetchone():
+                continue
+            impronta = _impronta(e["titolo"])
+            gemella = next((s for s in storie if _stessa_storia(s[2], impronta)), None)
+            if gemella:
+                _inserisci(con, e | {"sezione": "doppione", "extra": json.dumps({"di": gemella[0]})}, oggi, 0, "", None)
+                if gemella[1] == oggi:
+                    con.execute("UPDATE elementi SET copertura = copertura + 1, punti = punti + 1 WHERE id = ?",
+                                (gemella[0],))
+                continue
+            punti, parole, rubrica = valuta(e, *zona)
+            nuove += _inserisci(con, e, oggi, punti, parole, rubrica)
+            storie.append((e["id"], oggi, impronta))
+    con.commit()
+    print(f"{sezione}: {nuove} nuove", flush=True)
+
+
+def raccogli_sport(con, oggi):
+    _raccogli_feed(con, oggi, "sport", fonti.SPORT, PROFILO["sport"]["ore"], valuta_sport)
+
+
+def raccogli_attualita(con, oggi):
+    _raccogli_feed(con, oggi, "attualita", fonti.ATTUALITA, PROFILO["attualita"]["ore"], valuta_attualita)
 
 
 def raccogli_ricerca(con, oggi):
@@ -302,19 +399,25 @@ def _vicina(a, b):
     return comuni >= 2 and comuni / max(1, min(len(a), len(b))) >= 0.34
 
 
-def _scegli_notizie(con, oggi):
-    """Dalla più forte in giù, saltando quelle troppo vicine a una già scelta: prima gli articoli, poi le brevi."""
-    n = PROFILO["notizie"]
-    fatte = con.execute("SELECT titolo, ruolo FROM elementi WHERE visto_il=? AND sezione='notizie' AND ruolo IS NOT NULL",
-                        (oggi,)).fetchall()
+CON_TESTO = 80      # caratteri minimi di testo per uscire per esteso: senza testo non c'è niente da riassumere
+
+
+def _scegli(con, oggi, sezione, piani, rubrica=None):
+    """Dalla più forte in giù, saltando quelle troppo vicine a una già scelta. `piani`: [(ruolo, quanti, soglia,
+    serve_testo)] in ordine: una voce va nel primo piano con posto, punti sufficienti e (se serve) un testo.
+    Così le notizie di Google News, che hanno solo il titolo, finiscono tra le brevi."""
+    filtro, argomenti = ("AND rubrica=?", (rubrica,)) if rubrica else ("", ())
+    fatte = con.execute(f"SELECT titolo, ruolo FROM elementi WHERE visto_il=? AND sezione=? {filtro}"
+                        " AND ruolo IS NOT NULL", (oggi, sezione, *argomenti)).fetchall()
     scelte = [_impronta(r["titolo"]) for r in fatte]
-    posti = {"articolo": n["massimo"] - sum(r["ruolo"] == "articolo" for r in fatte),
-             "breve": n["brevi"] - sum(r["ruolo"] == "breve" for r in fatte)}
-    for r in con.execute("SELECT id, titolo FROM elementi WHERE visto_il=? AND sezione='notizie' AND ruolo IS NULL"
-                         " AND punti>=? ORDER BY punti DESC, copertura DESC", (oggi, n["soglia"])).fetchall():
-        ruolo = next((k for k, v in posti.items() if v > 0), None)
+    posti = {ruolo: quanti - sum(r["ruolo"] == ruolo for r in fatte) for ruolo, quanti, _, _ in piani}
+    for r in con.execute(f"SELECT id, titolo, testo, punti FROM elementi WHERE visto_il=? AND sezione=? {filtro}"
+                         " AND ruolo IS NULL AND punti>0 ORDER BY punti DESC, copertura DESC, uscito DESC",
+                         (oggi, sezione, *argomenti)).fetchall():
+        ruolo = next((ruolo for ruolo, _, soglia, serve_testo in piani if posti[ruolo] > 0 and r["punti"] >= soglia
+                      and (not serve_testo or len(r["testo"] or "") >= CON_TESTO)), None)
         if not ruolo:
-            break
+            continue
         impronta = _impronta(r["titolo"])
         if any(_vicina(impronta, s) for s in scelte):
             continue
@@ -323,13 +426,50 @@ def _scegli_notizie(con, oggi):
         con.execute("UPDATE elementi SET ruolo=? WHERE id=?", (ruolo, r["id"]))
 
 
+def _scegli_repo(con, oggi):
+    """Gli 8 che crescono di più, al massimo `per_tema` per tema. Ogni giorno da capo: le ripetizioni vanno bene."""
+    g = PROFILO["github"]
+    if con.execute("SELECT 1 FROM elementi WHERE visto_il=? AND sezione='github' AND ruolo IS NOT NULL",
+                   (oggi,)).fetchone():
+        return
+    per_tema, presi = {}, 0
+    for r in con.execute("SELECT id, rubrica FROM elementi WHERE visto_il=? AND sezione='github' ORDER BY punti DESC",
+                         (oggi,)).fetchall():
+        if presi >= g["massimo"]:
+            break
+        if per_tema.get(r["rubrica"], 0) >= g["per_tema"]:
+            continue
+        per_tema[r["rubrica"]] = per_tema.get(r["rubrica"], 0) + 1
+        presi += 1
+        con.execute("UPDATE elementi SET ruolo='articolo' WHERE id=?", (r["id"],))
+
+
 def scegli(con, oggi):
-    g, r = PROFILO["github"], PROFILO["ricerca"]
-    _scegli_notizie(con, oggi)
+    n, s, a, r = PROFILO["notizie"], PROFILO["sport"], PROFILO["attualita"], PROFILO["ricerca"]
+    _scegli(con, oggi, "notizie", [("articolo", n["massimo"], n["soglia"], True), ("breve", n["brevi"], n["soglia"], False)])
+    _scegli_repo(con, oggi)
+    _scegli(con, oggi, "sport", [("articolo", s["articoli"], s["soglia_articolo"], True), ("breve", s["brevi"], s["soglia"], False)])
+    for zona in ("italia", "estero"):
+        _scegli(con, oggi, "attualita", [("breve", a["per_zona"], 1, False)], rubrica=zona)
     _scegli_weekend(con, oggi)
-    _assegna(con, oggi, "github", "articolo", g["massimo"], 1)
-    _assegna(con, oggi, "ricerca", "articolo", r["massimo"], r["soglia"])
+    _assegna(con, oggi, "ricerca", "breve", r["massimo"], r["soglia"])
     con.commit()
+
+
+def _spiegazione(con, r, oggi):
+    """Due o tre frasi su cos'è il repository, dal README. Se è già uscito un altro giorno, si riusa quella."""
+    gia = con.execute("SELECT riassunto FROM elementi WHERE sezione='github' AND titolo=? AND visto_il<?"
+                      " AND length(riassunto)>60 ORDER BY visto_il DESC LIMIT 1", (r["titolo"], oggi)).fetchone()
+    if gia:
+        return gia[0]
+    try:
+        inizio = fonti.readme(r["titolo"])
+    except Exception:                                   # niente README: basta la descrizione
+        inizio = ""
+    if not (inizio or r["testo"]):
+        return ""
+    risposta = _in_italiano(SPIEGA, f"Progetto: {r['titolo']}\nDescrizione: {r['testo']}\n\nREADME: {inizio}")
+    return " ".join(_pulita(re.sub(r"^\W*spiegazione\W*:\s*", "", risposta, flags=re.I)).split()) or r["testo"]
 
 
 def traduci(con, oggi):
@@ -350,8 +490,7 @@ def traduci(con, oggi):
             t0 = time.time()
             try:
                 if r["sezione"] == "github":
-                    titolo = r["titolo"]
-                    riassunto = (_prima_riga(_in_italiano(DESCRIZIONE, r["testo"])) or r["testo"]) if r["testo"] else ""
+                    titolo, riassunto = r["titolo"], _spiegazione(con, r, oggi)
                 elif r["ruolo"] == "breve" or not r["testo"]:
                     titolo, riassunto = _prima_riga(_in_italiano(SOLO_TITOLO, r["titolo"])), ""
                 else:
@@ -375,6 +514,23 @@ def impagina(con, oggi):
     uscita.parent.mkdir(exist_ok=True)
     uscita.write_text(giornale.pagina(con, oggi, PROFILO), "utf-8")
     print(f"edizione: {uscita}", flush=True)
+    archivia_pdf(uscita)
+
+
+EDGE = Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")
+
+
+def archivia_pdf(html):
+    """L'edizione come esce dalla stampante (?carta: due fogli, niente intestazioni), accanto all'HTML.
+    ~0,5 MB al giorno. Edge senza finestra, con un profilo suo per non toccare quello di tutti i giorni."""
+    pdf = html.with_suffix(".pdf")
+    try:
+        subprocess.run([EDGE, "--headless=new", "--disable-gpu", f"--user-data-dir={RADICE / 'data' / 'edge-pdf'}",
+                        "--virtual-time-budget=10000", "--no-pdf-header-footer", f"--print-to-pdf={pdf}",
+                        html.as_uri() + "?carta"], timeout=120, capture_output=True)
+        print(f"archivio: {pdf}", flush=True)
+    except (OSError, subprocess.SubprocessError) as err:
+        print(f"  pdf saltato ({err})", flush=True)
 
 
 def main():
@@ -388,6 +544,8 @@ def main():
         raccogli_meteo(con, oggi)
         raccogli_notizie(con, oggi)
         raccogli_repo(con, oggi)
+        raccogli_sport(con, oggi)
+        raccogli_attualita(con, oggi)
         if dt.date.today().weekday() >= 5:     # sabato e domenica: il weekend a Roma al posto della ricerca
             raccogli_weekend(con, oggi)
         else:

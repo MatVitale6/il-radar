@@ -20,10 +20,10 @@ data center, attacchi informatici a paesi e aziende, sovranità digitale europea
 [giornale]
 fondo = 15        # quanti "rimasti fuori" mostrare in fondo, per i tuoi giudizi
 
-[meteo]
-citta = "Roma"
-lat = 41.89
-lon = 12.49
+[meteo]                   # Aeronautica Militare (meteoam.it), Open-Meteo di riserva
+citta = "San Paolo"
+lat = 41.859
+lon = 12.482
 
 # ── 1. NOTIZIE ────────────────────────────────────────────────────────────────
 [notizie]
@@ -154,13 +154,124 @@ copertura = 2     # punti in più per ogni altra testata che dà la stessa notiz
 "oroscopo" = -5
 
 # ── 2. REPOSITORY GITHUB ──────────────────────────────────────────────────────
+# I più seguiti dei tuoi temi (anche vecchi, anche già visti), ordinati per quanto crescono adesso:
+# stelle guadagnate negli ultimi 7 giorni, dallo storico che il radar registra ogni giorno. Finché lo
+# storico non c'è, la media di stelle al giorno dalla nascita. Spiegazione dal README, riassunto da MiniCPM.
 [github]
-giorni = 7        # repository creati da non più di tanti giorni
-massimo = 8       # quanti pubblicarne (descrizione tradotta da MiniCPM)
-temi = ["mcp", "llm", "ai-agents", "local-llm", "cybersecurity", "threejs"]
-# punti = log2(stelle) + parole chiave della ricerca trovate in nome, descrizione e temi
+massimo = 8
+per_tema = 2      # al massimo tanti per tema, per non avere otto agenti
+stelle_min = 300
+attivi_giorni = 30  # aggiornati da non più di tanti giorni
+[github.temi]     # nome del tema = filtro di ricerca GitHub
+"Agenti AI" = "topic:ai-agents"
+"MCP" = "topic:mcp"
+"LLM locali" = "topic:local-llm"
+"LLM" = "topic:llm"
+"3D e WebGL" = "topic:threejs"
+"WebGL" = "topic:webgl"
+"Automazione Python" = "topic:automation language:python"
+"Sicurezza" = "topic:cybersecurity"
 
-# ── 3a. WEEKEND A ROMA (sabato e domenica, al posto della ricerca) ──────────────
+# ── 3. SPORT ──────────────────────────────────────────────────────────────────
+# Corsa, atletica, tennis, pallavolo, bici; professionisti e gare amatoriali a Roma; niente calcio.
+# Un fatto importante (punti >= soglia_articolo, con testo) esce con titolo e riassunto; il resto solo
+# titolo; nei giorni vuoti la sezione non c'è.
+[sport]
+ore = 36
+soglia = 5
+soglia_articolo = 12
+articoli = 2
+brevi = 5
+italiani = ["Sinner", "Musetti", "Paolini", "Cobolli", "Berrettini", "Darderi", "Arnaldi", "Bronzetti",
+            "Tamberi", "Jacobs", "Furlani", "Battocletti", "Crippa", "Iapichino", "Simonelli", "Fabbri",
+            "Dosso", "Ganna", "Ciccone", "Pellizzari", "Longo Borghini", "Balsamo", "Egonu", "Sylla",
+            "Giannelli", "Michieletto", "Orro", "Romanò", "Velasco"]
+[sport.discipline]        # almeno una deve comparire, se no non è sport che ti interessa
+"atletica" = 3
+"maratona" = 4
+"mezza maratona" = 4
+"corsa" = 2
+"podistic*" = 3
+"running" = 2
+"cross" = 1
+"trail" = 1
+"tennis" = 3
+"ATP" = 3
+"WTA" = 3
+"pallavolo" = 3
+"volley" = 3
+"Superlega" = 3
+"ciclismo" = 3
+"granfondo" = 3
+"Giro d'Italia" = 4
+"Tour de France" = 4
+"Vuelta" = 3
+[sport.importanza]
+"record del mondo" = 10
+"record mondiale" = 10
+"world record" = 10
+"record italiano" = 7
+"record" = 4
+"oro" = 4
+"campione del mondo" = 7
+"campionessa del mondo" = 7
+"medaglia" = 3
+"vince" = 3
+"trionfa" = 3
+"conquista" = 2
+"Slam" = 3
+"Wimbledon" = 3
+"US Open" = 3
+"Roland Garros" = 3
+"Australian Open" = 3
+"ATP Finals" = 3
+"Masters 1000" = 2
+"Diamond League" = 3
+"Mondiali" = 3
+"Europei" = 2
+"Olimpiadi" = 3
+"italian*" = 2
+"azzurr*" = 2
+[sport.giu]
+"calcio" = -20
+"Serie A" = -20
+"calciomercato" = -20
+"Champions League" = -10
+"rugby" = -10
+"basket" = -10
+"Formula 1" = -10
+"MotoGP" = -10
+"canoa" = -5
+"LIVE" = -3
+"DIRETTA" = -3
+
+# ── 4. ATTUALITÀ (solo titoli, in barra laterale) ─────────────────────────────
+# Solo fatti avvenuti: un titolo entra se ha un verbo di fatto compiuto (o un participio passato:
+# approvato, perquisiti) e nessuna parola di ipotesi; fuori anche le domande e le sole dichiarazioni.
+# Si perde qualcosa di valido, ma non entrano "si discute", "potrebbe", "verso".
+[attualita]
+ore = 30
+per_zona = 5
+certo = ["approvat*", "entra in vigore", "entrano in vigore", "in vigore", "firmat*", "firma", "eletto", "eletta",
+         "nominat*", "condannat*", "assolt*", "arrestat*", "mort*", "muore", "vince", "ha vinto", "varat*",
+         "pubblicat*", "stanziat*", "dimess*", "si dimette", "sciolt*", "confermat*", "via libera", "ok",
+         "aumenta*", "cala", "calano", "sale", "salgono", "scende", "scendono", "chiude", "chiusa",
+         "annuncia", "decide", "decreto", "legge", "sentenza", "Istat", "dati", "report",
+         # verbi al presente dei titoli (fatti già accaduti): "attacca", "colpisce", "firma"...
+         "approva", "vieta", "ucciso", "uccisi", "uccide", "morti", "feriti", "colpit*", "colpisce", "lancia",
+         "attacca", "raid", "rilasciat*", "liberat*", "vittoria", "sconfitt*", "eletti", "dimissioni", "accordo",
+         "intesa", "firmano", "sanzioni", "espuls*", "evacuat*", "sgomberat*", "sequestrat*", "revoca*",
+         "boccia*", "respint*", "promulga*", "ratifica*", "inaugura*", "riapre", "scatta", "scattano"]
+incerto = ["potrebbe", "potrebbero", "potrà", "ipotesi", "verso", "si discute", "discussione", "valuta",
+           "valutano", "pronto a", "pronta a", "rischia", "rischiano", "forse", "probabile", "possibile", "poi",
+           "stima", "stime",
+           "sarebbe", "sarebbero", "trattativa", "propost*", "propone", "chiede", "chiedono", "attesa",
+           "in arrivo", "previst*", "prossim*", "piano per", "vuole", "vogliono", "sondaggio"]
+escludi = ["calcio", "Serie A", "calciomercato", "Champions League", "allenatore", "scudetto", "Figc", "Uefa",
+           "gol", "oroscopo", "gossip", "vip", "catalogo", "webinar", "seminario", "convegno", "bando", "temperature",
+           "meteo", "previsioni"]
+
+# ── WEEKEND A ROMA (sabato e domenica, al posto della ricerca) ──────────────
 [weekend]
 ore = 96          # annunci più vecchi di così non entrano
 massimo = 14      # eventi in pagina (fonti italiane: niente modello)
@@ -224,10 +335,10 @@ fonti_locali = ["lazioeventi.com", "RomaToday", "romapop.it", "Roma.Com", "EZ Ro
 "Scuderie" = 3
 "Vittoriano" = 2
 
-# ── 3. RICERCA (arXiv) ────────────────────────────────────────────────────────
+# ── 5. RICERCA (arXiv): solo titoli, in barra laterale ────────────────────────
 [ricerca]
 soglia = 6        # voto minimo (0-10)
-massimo = 5       # articoli riassunti da MiniCPM (~40 s l'uno)
+massimo = 5
 
 [ricerca.parole]
 # AI applicata

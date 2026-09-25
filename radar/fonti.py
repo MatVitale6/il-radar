@@ -57,6 +57,25 @@ EVENTI = [
     ("Il Messaggero", "https://www.ilmessaggero.it/rss/roma.xml", "it", 1),
 ]
 
+# Attualità, solo titoli: nome, indirizzo, lingua, peso, zona ("auto" = dalla categoria del feed)
+ATTUALITA = [
+    ("ANSA", "https://www.ansa.it/sito/notizie/politica/politica_rss.xml", "it", 1, "italia"),
+    ("ANSA", "https://www.ansa.it/sito/notizie/economia/economia_rss.xml", "it", 1, "italia"),
+    ("ANSA", "https://www.ansa.it/sito/notizie/cronaca/cronaca_rss.xml", "it", 0, "italia"),
+    ("ANSA", "https://www.ansa.it/sito/notizie/mondo/mondo_rss.xml", "it", 1, "estero"),
+    ("Il Fatto Quotidiano", "https://www.ilfattoquotidiano.it/feed/", "it", 1, "auto"),
+    ("ISTAT", "https://www.istat.it/feed/", "it", 4, "italia"),
+]
+
+# Sport: corsa, atletica, tennis, pallavolo, bici. Professionisti e gare amatoriali a Roma.
+SPORT = [
+    ("OA Sport", "https://www.oasport.it/feed/", "it", 1),
+    ("FIDAL", "https://www.fidal.it/rss.php", "it", 2),
+    ("Runner's World", "https://www.runnersworld.com/it/rss/all.xml/", "it", 1),
+    ("ANSA", "https://www.ansa.it/sito/notizie/sport/sport_rss.xml", "it", 1),
+    ("Google News", _gnews('(podistica OR "corsa su strada" OR "mezza maratona" OR "10 km" OR granfondo) Roma', "it", 5), "it", 0),
+]
+
 # Codici meteo WMO (quelli di Open-Meteo), in parole
 TEMPO = {0: "sereno", 1: "quasi sereno", 2: "poco nuvoloso", 3: "nuvoloso", 45: "nebbia", 48: "nebbia",
          51: "pioviggine", 53: "pioviggine", 55: "pioviggine", 56: "pioviggine gelata", 57: "pioviggine gelata",
@@ -66,14 +85,47 @@ TEMPO = {0: "sereno", 1: "quasi sereno", 2: "poco nuvoloso", 3: "nuvoloso", 45: 
          96: "temporale con grandine", 99: "temporale con grandine"}
 
 
+# Icone dell'Aeronautica Militare (legenda: meteoam.it/it/legenda-simboli). 31-35 sono le varianti notturne.
+ICONE_AM = {"01": "sereno", "02": "parzialmente velato", "03": "velato", "04": "poco nuvoloso",
+            "05": "molto nuvoloso", "06": "coperto", "07": "pioggia debole", "08": "pioggia forte",
+            "09": "temporale", "10": "pioggia mista a neve", "11": "pioggia che gela", "12": "foschia",
+            "13": "nebbia", "14": "grandine", "15": "neve", "16": "trombe d'aria", "17": "fumo",
+            "18": "tempesta di sabbia", "31": "sereno", "32": "parzialmente velato", "33": "velato",
+            "34": "poco nuvoloso", "35": "molto nuvoloso"}
+
+
 def meteo(lat, lon):
-    """Il tempo di oggi da Open-Meteo (gratuito, senza chiave)."""
+    """Il tempo di oggi: Aeronautica Militare, e Open-Meteo se quella non risponde."""
+    try:
+        return meteo_am(lat, lon)
+    except Exception:
+        return meteo_open(lat, lon)
+
+
+def meteo_am(lat, lon):
+    """Dal meteogramma di meteoam.it (lo stesso indirizzo che usa il loro sito: non è un'API pubblica
+    documentata, può cambiare). Uso personale, una chiamata al giorno, niente ridistribuzione."""
+    d = json.loads(scarica(f"https://api.meteoam.it/deda-meteograms/api/GetMeteogram/preset1/{lat},{lon}"))
+    oggi = d["extrainfo"]["stats"][0]
+    serie = dict(zip(d["paramlist"], d["datasets"]["0"].values()))
+    inizio = dt.datetime.fromisoformat(oggi["localDate"])            # mezzanotte ora italiana, con lo scarto (+02:00)
+    ore = [i for i, t in enumerate(d["timeseries"])
+           if inizio <= dt.datetime.fromisoformat(t.replace("Z", "+00:00")) < inizio + dt.timedelta(days=1)]
+    pioggia = sum(float(serie["tpp"][str(i)] or 0) for i in ore)       # mm previsti nella giornata
+    return {"cielo": ICONE_AM.get(oggi["icon"], "variabile"), "min": oggi["minCelsius"], "max": oggi["maxCelsius"],
+            "pioggia_mm": round(pioggia, 1), "fonte": "Aeronautica Militare"}
+
+
+def meteo_open(lat, lon):
+    """Riserva: Open-Meteo (gratuito, senza chiave), col modello italiano ICON-2I."""
     url = "https://api.open-meteo.com/v1/forecast?" + urllib.parse.urlencode({
         "latitude": lat, "longitude": lon, "timezone": "Europe/Rome", "forecast_days": 1,
-        "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"})
+        "models": "italia_meteo_arpae_icon_2i",
+        "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum"})
     g = json.loads(scarica(url))["daily"]
     return {"cielo": TEMPO.get(g["weather_code"][0], "variabile"), "min": round(g["temperature_2m_min"][0]),
-            "max": round(g["temperature_2m_max"][0]), "pioggia": g["precipitation_probability_max"][0]}
+            "max": round(g["temperature_2m_max"][0]), "pioggia_mm": round(g["precipitation_sum"][0] or 0, 1),
+            "fonte": "Open-Meteo"}
 
 
 def scarica(url, intestazioni=None):
@@ -83,7 +135,10 @@ def scarica(url, intestazioni=None):
 
 
 def testo_semplice(html):
-    return " ".join(unescape(re.sub(r"<[^>]+>", " ", html or "")).split())
+    testo = " ".join(unescape(re.sub(r"<[^>]+>", " ", html or "")).split())
+    # le chiusure automatiche di WordPress: "The post X appeared first on Y." / "L'articolo X proviene da Y."
+    return re.sub(r"\s*(?:\[…\]|\[\.\.\.\])?\s*(?:The post .* appeared first on .*|L[’']articolo .* proviene da .*)$",
+                  "", testo).strip()
 
 
 def _data(s):
@@ -110,10 +165,13 @@ def feed(nome, url, lingua, peso):
         fonte = nome
         if nome == "Google News":
             # il titolo è "Titolo - Testata" e la descrizione ripete solo il titolo
-            fonte = v.findtext("source") or titolo.rsplit(" - ", 1)[-1]
+            fonte = (v.findtext("source") or titolo.rsplit(" - ", 1)[-1]).strip(" |")
             titolo, corpo = titolo.rsplit(" - ", 1)[0], ""
+            if "|" in titolo and titolo.rsplit("|", 1)[1].strip().lower() in fonte.lower():
+                titolo = titolo.rsplit("|", 1)[0]          # "Torna a Viterbo... | Viterbo Post": la testata c'è già
         elif nome == "Hacker News":
             corpo = ""                     # solo link e punteggio, niente testo
+        titolo = titolo.strip(" |-–—:")                # c'è chi lo manda come "| Torna a Viterbo..."
         if not titolo or not link:
             continue
         uscito = _data(v.findtext("pubDate") or v.findtext(ATOM + "published") or v.findtext(ATOM + "updated"))
@@ -122,36 +180,50 @@ def feed(nome, url, lingua, peso):
             "fonte": fonte, "sezione": "notizie", "titolo": titolo, "url": link,
             "testo": corpo[:1500], "autori": "", "lingua": lingua, "peso": peso,
             "uscito": uscito.isoformat() if uscito else None, "extra": None,
+            "categorie": [c.text or "" for c in v.findall("category")],
         }
 
 
-def github(temi, giorni):
-    """Repository nuovi (creati negli ultimi `giorni`) ordinati per stelle: i più visti in generale e per tema."""
-    da = (dt.date.today() - dt.timedelta(days=giorni)).isoformat()
-    ricerche = [f"created:>{da} stars:>50"] + [f"topic:{t} created:>{da} stars:>10" for t in temi]
+def _github(url, grezzo=False):
     token = os.environ.get("GITHUB_TOKEN")
-    intestazioni = {"Accept": "application/vnd.github+json"} | ({"Authorization": f"Bearer {token}"} if token else {})
-    for i, q in enumerate(ricerche):
+    intestazioni = {"Accept": "application/vnd.github.raw" if grezzo else "application/vnd.github+json"}
+    if token:
+        intestazioni["Authorization"] = f"Bearer {token}"
+    try:
+        return scarica(url, intestazioni)
+    except urllib.error.HTTPError as err:
+        if err.code not in (403, 429):
+            raise
+        time.sleep(61)                     # limite di richieste al minuto: si aspetta e si riprova una volta
+        return scarica(url, intestazioni)
+
+
+def github_forti(temi, stelle_min, attivi_giorni):
+    """I repository più seguiti di ogni tema (anche vecchi), purché aggiornati di recente.
+    `temi`: {nome: filtro di ricerca GitHub}. Chi vada forte adesso lo decide chi chiama, dalla crescita
+    delle stelle giorno per giorno."""
+    da = (dt.date.today() - dt.timedelta(days=attivi_giorni)).isoformat()
+    for i, (tema, filtro) in enumerate(temi.items()):
         if i:
-            time.sleep(1 if token else 7)  # senza token GitHub concede 10 ricerche al minuto
+            time.sleep(1 if os.environ.get("GITHUB_TOKEN") else 7)   # senza token: 10 ricerche al minuto
         url = "https://api.github.com/search/repositories?" + urllib.parse.urlencode(
-            {"q": q, "sort": "stars", "order": "desc", "per_page": 20})
-        try:
-            risposta = scarica(url, intestazioni)
-        except urllib.error.HTTPError as err:
-            if err.code not in (403, 429):
-                raise
-            time.sleep(61)                 # limite di ricerche al minuto: si aspetta e si riprova una volta
-            risposta = scarica(url, intestazioni)
-        for r in json.loads(risposta)["items"]:
-            yield {
-                "id": "github:" + r["full_name"].lower(),
-                "fonte": "GitHub", "sezione": "github", "titolo": r["full_name"], "url": r["html_url"],
-                "testo": r["description"] or "", "autori": r["owner"]["login"], "lingua": "en", "peso": 0,
-                "uscito": r["created_at"],
-                "extra": json.dumps({"stelle": r["stargazers_count"], "linguaggio": r["language"],
-                                     "temi": r["topics"][:6]}),
-            }
+            {"q": f"{filtro} stars:>{stelle_min} pushed:>{da}", "sort": "stars", "order": "desc", "per_page": 40})
+        for r in json.loads(_github(url))["items"]:
+            yield {"nome": r["full_name"], "url": r["html_url"], "descrizione": r["description"] or "",
+                   "stelle": r["stargazers_count"], "linguaggio": r["language"], "temi": r["topics"][:6],
+                   "creato": r["created_at"][:10], "tema": tema}
+
+
+def readme(nome, caratteri=1800):
+    """L'inizio del README, ripulito da immagini, badge, codice e HTML: materiale per la spiegazione."""
+    md = _github(f"https://api.github.com/repos/{nome}/readme", grezzo=True).decode("utf-8", "replace")
+    md = re.sub(r"```.*?```", " ", md, flags=re.S)                     # blocchi di codice
+    md = re.sub(r"<[^>]+>", " ", md)                                    # HTML (spesso i badge)
+    md = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", md)                       # immagini
+    md = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", md)                    # link: resta il testo
+    righe = [r.strip(" #>*-|\t") for r in md.splitlines()]
+    righe = [r for r in righe if len(r) > 25 and not r.startswith(("[!", "http"))]
+    return " ".join(" ".join(righe).split())[:caratteri]
 
 
 def senza_latex(s):

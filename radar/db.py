@@ -14,7 +14,9 @@ CREATE TABLE IF NOT EXISTS elementi (
     titolo_it TEXT, riassunto TEXT,   -- da MiniCPM (o dalla fonte, se già italiana)
     giudizio INTEGER          -- +1 / -1 dato da te sulla pagina
 );
-CREATE TABLE IF NOT EXISTS meteo (data TEXT PRIMARY KEY, dati TEXT);   -- JSON: cielo, min, max, pioggia
+CREATE TABLE IF NOT EXISTS meteo (data TEXT PRIMARY KEY, dati TEXT);   -- JSON: cielo, min, max, pioggia_mm, fonte
+-- stelle dei repository osservati, una riga al giorno: da qui la crescita ("vanno forte")
+CREATE TABLE IF NOT EXISTS stelle (repo TEXT, data TEXT, stelle INTEGER, PRIMARY KEY (repo, data));
 """
 
 # colonne arrivate dopo la prima versione: aggiunte al volo ai database esistenti

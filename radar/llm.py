@@ -61,6 +61,7 @@ def scrivi(sistema, testo):
         "think": False,
         # num_predict: senza un tetto il modello ogni tanto entra in un ciclo e scrive per sempre
         # (il 25/9 una chiamata ha superato i 10 minuti e ha fermato il giro)
-        "options": {"temperature": 0, "num_predict": 250},
+        # repeat_penalty: il 25/9 ha scritto "l'immediato l'immediato l'immediato..." per mezza colonna
+        "options": {"temperature": 0, "num_predict": 250, "repeat_penalty": 1.15},
     }, timeout=180)
     return r["message"]["content"].strip()
