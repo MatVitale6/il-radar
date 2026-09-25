@@ -1,7 +1,8 @@
 # Il Radar
 
-Giornale personale del mattino: raccoglie le novità, un modello locale (MiniCPM5 via Ollama)
-decide cosa ti riguarda, e le impagina come la prima pagina di un quotidiano, stampabile.
+Giornale personale del mattino: raccoglie notizie, repository, sport e attualità, li seleziona con le parole
+chiave del profilo, fa tradurre e riassumere l'inglese a un modello locale (MiniCPM4.1 via Ollama) e li impagina
+come un quotidiano in bianco e nero, stampabile in 2 fogli A4.
 
 Solo libreria standard Python. Niente testo esce dal PC.
 
@@ -10,64 +11,67 @@ Solo libreria standard Python. Niente testo esce dal PC.
 - **Icona "Il Radar" sul desktop** → apre il giornale nel browser (se il server è spento lo riaccende).
 - **All'accesso a Windows** il collegamento `Il Radar (server)` nella cartella Esecuzione automatica
   (`shell:startup`) accende il server in background, senza finestre. Per non farlo partire: cancella quel collegamento.
-- **Il giro del mattino** lo lancia l'attività pianificata "Il Radar" (lun-ven 07:30) con `radar.cmd giro`;
+- **Il giro del mattino** lo lancia ogni giorno alle 07:30 l'attività pianificata "Il Radar" con `radar.cmd giro`;
   log in `data/giri.log`. Il server acceso mostra da solo l'edizione nuova.
-
-**Dal telefono** (stessa Wi-Fi): `http://192.168.1.6:8765` — l'indirizzo del PC in casa (se cambia:
-`ipconfig`, voce Wi-Fi). Il pulsante **Stampa sulla Canon** fa stampare il PC: il server apre una Edge fuori
-schermo, con un profilo suo (`data/edge-stampa`), in modalità `--kiosk-printing`; la pagina con `?stampa` si
-impagina sul foglio A4, stampa sulla stampante predefinita senza finestra di dialogo e si chiude.
-Perché il telefono arrivi al PC: server su `0.0.0.0` + `strumenti/rete-di-casa.ps1` (da amministratore: Wi-Fi
-di casa "Privata" e porta 8765 aperta solo sulle reti private e alla rete locale). Con NordVPN attiva serve
-l'opzione che lascia visibili i dispositivi della rete locale.
+- **Dal telefono** (stessa Wi-Fi): `http://192.168.1.6:8765` — l'indirizzo del PC in casa (se cambia: `ipconfig`,
+  voce Wi-Fi). Perché il telefono arrivi al PC: server su `0.0.0.0` + `strumenti/rete-di-casa.ps1` (da
+  amministratore: Wi-Fi di casa "Privata" e porta 8765 aperta solo sulle reti private e alla rete locale). Con
+  NordVPN attiva serve l'opzione che lascia visibili i dispositivi della rete locale.
+- **Stampa**: il pulsante *Stampa* della pagina (anche dal telefono) passa dall'anteprima di stampa e poi apre la
+  stampa del browser. *Anteprima di stampa* (`?carta`) mostra i due fogli come usciranno.
 
 A mano:
 
-    py -m radar giro     # raccoglie, seleziona, fa riassumere a MiniCPM, scrive edizioni/AAAA-MM-GG.html
+    py -m radar giro     # raccoglie, seleziona, traduce, scrive edizioni/AAAA-MM-GG.html e .pdf
     py -m radar apri     # apre il giornale (http://127.0.0.1:8765), accendendo il server se serve
     py -m radar serve    # solo il server, senza aprire il browser
     py strumenti/icona.py   # rigenera radar.ico
 
-## Come funziona
+## La pagina
 
-Tre parti, in quest'ordine sulla pagina: **notizie**, **repository GitHub**, **ricerca**. Il sabato e la
-domenica, al posto della ricerca, **il weekend a Roma e dintorni** (guide, musica, sagre, mostre). In testata
-il **meteo** del giorno (Open-Meteo).
+Testata con il meteo di San Paolo (Aeronautica Militare; Open-Meteo con il modello ICON-2I di riserva). Sotto,
+due colonne per tutta l'altezza, come un quotidiano:
 
-**Stampa (2 fogli A4).** Notizie, repository e agenda del weekend sono flussi a colonne (le rubriche sono titoletti
-dentro il flusso), così non restano fasce mezze vuote; in carta i riassunti hanno un massimo di righe. Uno script
-nella pagina pareggia la prima pagina: sposta sotto l'apertura tante notizie quante servono perché la colonna
-di sinistra finisca insieme a "In breve", misurando nel formato in cui la pagina verrà vista. Prima di stampare
-la pagina passa alla classe `.carta` (larghezza e caratteri del foglio), misura, poi torna com'era.
-`http://127.0.0.1:8765/?carta` (pulsante "Anteprima di stampa") mostra la pagina come uscirà dalla stampante.
-In stampa non compaiono le intestazioni del browser (titolo, data, indirizzo, numero di pagina): il margine del
-foglio è zero, così il browser non ha dove metterle, e i 10 mm di margine li dà il giornale stesso, ripetuti su
-ogni pagina (`box-decoration-break: clone`).
+- **a sinistra (3/4)**: l'apertura; le notizie su AI e sviluppo con riassunto, in rubriche (Governi e regole,
+  Cybersicurezza, AI e sviluppo); i repository GitHub con spiegazione; lo sport importante. Sabato e domenica
+  anche *Il weekend a Roma e dintorni* (guide, musica, sagre, mostre).
+- **a destra (1/4)**: i titoli — In breve, Italia, Estero, Sport, Dalla ricerca.
+
+**Sempre 2 fogli.** Sulla carta (stampa e anteprima) uno script misura il giornale nel formato del foglio e,
+finché supera i due fogli: se è più lunga la colonna principale, l'articolo più debole (prima lo sport, poi le
+notizie) diventa un titolo in barra; se è più lunga la barra, si tolgono i titoli dal fondo (ricerca, attualità,
+sport, brevi). I riassunti non si accorciano mai. In stampa non compaiono le intestazioni del browser: il margine
+del foglio è zero e i 10 mm li dà il giornale stesso, ripetuti su ogni pagina (`box-decoration-break: clone`).
 In `giornale.py` le regole della carta (`CARTA`) sono scritte una volta e valgono sia in `@media print` sia sotto
 `html.carta`.
 
+## Come funziona
+
 1. **raccolta** (`radar/fonti.py`)
-   - notizie: feed RSS di testate tech, cyber e di politica digitale (EN e IT) + ricerche mirate su Google News;
-     solo le ultime `notizie.ore` ore
-   - GitHub: API di ricerca, repository creati negli ultimi `github.giorni` giorni, per stelle (generale + temi)
-   - ricerca: feed RSS di arXiv (cs.AI, cs.LG, cs.CR), solo lavori nuovi
-2. **doppioni** — SQLite in `data/radar.db`. La stessa notizia da più testate (titoli simili, anche tra
-   italiano e inglese) diventa una sola, con "su N testate" e punti in più
-3. **selezione** — parole chiave pesate in `profilo.toml`. Le notizie hanno tre gruppi che sono anche le
-   rubriche (Governi e regole, Cybersicurezza, AI e sviluppo) ed entrano solo se toccano tecnologia o
-   sicurezza; nella scelta si salta ciò che è troppo vicino a una notizia già presa
-4. **MiniCPM** (`radar/llm.py`) — traduce e riassume solo ciò che è in inglese; le fonti italiane escono come sono.
-   Risposte in testo semplice (`TITOLO:` / `RIASSUNTO:`): il JSON lo sbaglia spesso. Se nella traduzione
-   compaiono caratteri cinesi (succede: "dei数据中心") riprova una volta, poi tiene l'originale inglese
-5. **impaginazione** (`radar/giornale.py`) — apertura, spalle, "In breve", rubriche, repository, ricerca
+   - notizie: feed RSS di testate tech, cyber e di politica digitale (EN e IT) + Google News mirato
+   - GitHub: i più seguiti di ogni tema del profilo, aggiornati nell'ultimo mese. Le stelle si registrano ogni
+     giorno (tabella `stelle`): "vanno forte" = stelle guadagnate in 7 giorni (finché manca lo storico, la media
+     dalla nascita). Al massimo `per_tema` per tema; ripetizioni ammesse
+   - sport: OA Sport, FIDAL, Runner's World, ANSA + Google News per le gare a Roma. Importanza dal titolo (record,
+     titoli, grandi eventi, atleti italiani); niente calcio. Per esteso solo se importante
+   - attualità: ANSA, Il Fatto Quotidiano, ISTAT. Solo fatti avvenuti: verbo di fatto compiuto o participio
+     passato, niente ipotesi, domande, sole dichiarazioni, calcio
+   - ricerca: arXiv (cs.AI, cs.LG, cs.CR), solo titoli
+2. **doppioni** — SQLite in `data/radar.db`. La stessa notizia da più testate (titoli simili, anche tra italiano e
+   inglese) diventa una sola, con "su N testate" e punti in più
+3. **selezione** — parole chiave pesate in `profilo.toml`. Per esteso solo ciò che ha un testo da riassumere:
+   Google News dà solo titoli, e quelli vanno in barra
+4. **MiniCPM** (`radar/llm.py`) — traduce e riassume solo l'inglese; spiega i repository dal README. Testo semplice
+   (il JSON lo sbaglia spesso), tetto di lunghezza, penalità per le ripetizioni. Se scrive caratteri cinesi o va
+   in ciclo riprova una volta, poi resta l'originale. Un errore lascia in originale solo quella voce
+5. **impaginazione** (`radar/giornale.py`) — a fine giro anche il PDF identico alla stampa, in `edizioni/`
 6. **giudizi** — i pulsanti sulla pagina salvano +1/-1 nel database, per tarare profilo e soglie
 
 ## Cartelle non versionate
 
 - `runtime/ollama/` — Ollama portabile (v0.34.4), nessuna installazione di sistema
-- `runtime/models/` — i pesi (`openbmb/minicpm5:q8_0`, 1,2 GB)
-- `data/`, `edizioni/`
+- `runtime/models/` — i pesi (`openbmb/minicpm4.1`, 5 GB)
+- `data/` (database, log, profili Edge), `edizioni/` (HTML e PDF di ogni giorno)
 
-Per rimettere in piedi il runtime su un altro PC: scaricare `ollama-windows-amd64.zip` dalle release
-di Ollama in `runtime/ollama/`, poi con `OLLAMA_MODELS=runtime/models` eseguire
-`ollama pull openbmb/minicpm5:q8_0`.
+Per rimettere in piedi il runtime su un altro PC: scaricare `ollama-windows-amd64.zip` dalle release di Ollama in
+`runtime/ollama/`, poi con `OLLAMA_MODELS=runtime/models` eseguire `ollama pull openbmb/minicpm4.1`.
