@@ -59,6 +59,8 @@ def scrivi(sistema, testo):
         "messages": [{"role": "system", "content": sistema}, {"role": "user", "content": testo}],
         "stream": False,
         "think": False,
-        "options": {"temperature": 0},
-    })
+        # num_predict: senza un tetto il modello ogni tanto entra in un ciclo e scrive per sempre
+        # (il 25/9 una chiamata ha superato i 10 minuti e ha fermato il giro)
+        "options": {"temperature": 0, "num_predict": 250},
+    }, timeout=180)
     return r["message"]["content"].strip()

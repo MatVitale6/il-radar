@@ -348,18 +348,22 @@ def traduci(con, oggi):
     with llm.ollama():
         for i, r in enumerate(righe, 1):
             t0 = time.time()
-            if r["sezione"] == "github":
-                titolo = r["titolo"]
-                riassunto = (_prima_riga(_in_italiano(DESCRIZIONE, r["testo"])) or r["testo"]) if r["testo"] else ""
-            elif r["ruolo"] == "breve" or not r["testo"]:
-                titolo, riassunto = _prima_riga(_in_italiano(SOLO_TITOLO, r["titolo"])), ""
-            else:
-                risposta = _in_italiano(SISTEMA, f"Titolo: {r['titolo']}\n\nTesto: {r['testo']}")
-                titolo, riassunto = _riga(risposta, "titolo"), _riga(risposta, "riassunto")
-                if not riassunto:
-                    # risposta fuori formato: esce comunque, col testo originale
-                    print(f"     risposta fuori formato, resta in inglese: {risposta[:80]!r}", flush=True)
-                    riassunto = giornale.breve(r["testo"])
+            try:
+                if r["sezione"] == "github":
+                    titolo = r["titolo"]
+                    riassunto = (_prima_riga(_in_italiano(DESCRIZIONE, r["testo"])) or r["testo"]) if r["testo"] else ""
+                elif r["ruolo"] == "breve" or not r["testo"]:
+                    titolo, riassunto = _prima_riga(_in_italiano(SOLO_TITOLO, r["titolo"])), ""
+                else:
+                    risposta = _in_italiano(SISTEMA, f"Titolo: {r['titolo']}\n\nTesto: {r['testo']}")
+                    titolo, riassunto = _riga(risposta, "titolo"), _riga(risposta, "riassunto")
+                    if not riassunto:
+                        # risposta fuori formato: esce comunque, col testo originale
+                        print(f"     risposta fuori formato, resta in inglese: {risposta[:80]!r}", flush=True)
+                        riassunto = giornale.breve(r["testo"])
+            except OSError as err:                  # timeout o Ollama giù: questo resta in originale, il giro va avanti
+                print(f"     modello non disponibile ({err}), resta in inglese", flush=True)
+                titolo, riassunto = None, giornale.breve(r["testo"])
             con.execute("UPDATE elementi SET titolo_it=?, riassunto=? WHERE id=?",
                         (titolo or None, riassunto, r["id"]))
             con.commit()

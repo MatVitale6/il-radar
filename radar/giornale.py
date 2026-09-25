@@ -188,7 +188,7 @@ def pagina(con, data, profilo):
 <style>{CSS}</style>
 </head>
 <body>
-<div class="strumenti"><a href="?carta">Anteprima di stampa</a><button onclick="print()">Stampa</button><button class="canon">Stampa sulla Canon</button></div>
+<div class="strumenti"><a href="?carta">Anteprima di stampa</a><button onclick="print()">Stampa</button></div>
 <main class="foglio">
 <header class="testata">
   <div class="orecchio">Notizie {len(notizie) + len(brevi)}<br>Repository {len(repo)}<br>Ricerca {len(ricerca)}</div>
@@ -294,8 +294,7 @@ h3 { overflow-wrap: break-word; }
 .giudizio button { font: 600 12px/1 "Source Serif 4", serif; letter-spacing: .06em; text-transform: uppercase;
   background: none; color: var(--inchiostro); border: 1px solid var(--filetto); padding: 7px 10px; cursor: pointer; }
 .giudizio button[aria-pressed="true"] { background: var(--inchiostro); color: var(--carta); }
-.statico .giudizio, .statico .canon { display: none; }
-.strumenti .canon:disabled { cursor: wait; opacity: .7; }
+.statico .giudizio { display: none; }
 
 .fondo .nota { margin: 0 0 10px; font-style: italic; color: var(--grigio); font-size: 15px; }
 .fondo ol { margin: 0; padding: 0; list-style: none; columns: 2; column-gap: 28px; column-rule: 1px solid #0004; }
@@ -447,26 +446,5 @@ addEventListener("beforeprint", () => { radice.classList.add("carta"); bilancia(
 addEventListener("afterprint", () => { radice.classList.toggle("carta", anteprima); bilancia(); });
 document.fonts.ready.then(bilancia);
 
-// "Stampa sulla Canon" (anche dal telefono): chiede al PC di stampare; il PC apre questa pagina con ?stampa
-const canon = document.querySelector(".strumenti .canon");
-canon?.addEventListener("click", async () => {
-  canon.disabled = true;
-  canon.textContent = "Invio…";
-  try {
-    const r = await fetch("/stampa", { method: "POST" });
-    canon.textContent = await r.text();
-  } catch {
-    canon.textContent = "PC non raggiungibile";
-  }
-  setTimeout(() => { canon.disabled = false; canon.textContent = "Stampa sulla Canon"; }, 10000);
-});
 
-// ?stampa: la apre il server in una Edge in modalità chiosco; si impagina sul foglio, stampa e si chiude
-if (parametri.has("stampa")) {
-  document.fonts.ready.then(() => {
-    radice.classList.add("carta");
-    bilancia();
-    setTimeout(() => { print(); setTimeout(() => close(), 2000); }, 500);
-  });
-}
 """
