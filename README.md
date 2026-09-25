@@ -78,6 +78,29 @@ lo spezzano. Con fogli a misura fissa non c'è niente da spezzare e il risultato
 5. **impaginazione** (`radar/giornale.py`) — a fine giro anche il PDF identico alla stampa, in `edizioni/`
 6. **giudizi** — i pulsanti sulla pagina salvano +1/-1 nel database, per tarare profilo e soglie
 
+## Personalizzare per un'altra persona
+
+Il motore (raccolta, doppioni, selezione, impaginazione, stampa) non dipende da chi legge: cambia il profilo. Il
+`profilo.toml` di questa cartella è quello di chi l'ha scritto (tecnologia e sicurezza, repository per tema, sport,
+attualità, weekend a Roma), non una scelta obbligata. Cosa si tocca, dal più semplice:
+
+1. **`profilo.toml`** — chi legge e cosa gli interessa
+   - `descrizione` e `[meteo]` (città e coordinate)
+   - le parole chiave con i pesi: `[notizie.norme]`, `[notizie.sicurezza]`, `[notizie.tecnologia]` (le tre rubriche
+     delle notizie), `[notizie.giu]` (il rumore da spingere giù), `[ricerca.parole]`; le regole di scrittura sono
+     nell'intestazione del file
+   - quante voci e con quali soglie: `massimo`, `brevi`, `soglia`, `ore` in ogni sezione
+   - `[github.temi]` (un tema = un filtro di ricerca GitHub), `[sport]` (discipline, importanza, atleti da seguire),
+     `[attualita]` (verbi di fatto compiuto, ipotesi da scartare, argomenti da escludere), `[weekend]` (luoghi,
+     testate locali, rubriche)
+2. **`radar/fonti.py`** — le testate: gli elenchi `NOTIZIE`, `ATTUALITA`, `SPORT`, `EVENTI` (nome, indirizzo del
+   feed, lingua, peso) e le ricerche su Google News (`_gnews`)
+3. **il codice, solo per cambiare la struttura** — i nomi delle tre rubriche delle notizie stanno in
+   `radar/giornale.py` (`RUBRICHE`) e le loro chiavi in `radar/__main__.py` (`RUBRICHE_NOTIZIE`): per cambiare le
+   parole chiave basta il file, per cambiare le rubriche servono due righe di codice
+
+Una sezione senza voci quel giorno non compare. Dopo ogni modifica: `py -m radar giro` e `?carta` per controllare i fogli.
+
 ## Cartelle non versionate
 
 - `runtime/ollama/` — Ollama portabile (v0.34.4), nessuna installazione di sistema
