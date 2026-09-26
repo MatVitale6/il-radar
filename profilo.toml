@@ -158,8 +158,8 @@ copertura = 2     # punti in più per ogni altra testata che dà la stessa notiz
 # stelle guadagnate negli ultimi 7 giorni, dallo storico che il radar registra ogni giorno. Finché lo
 # storico non c'è, la media di stelle al giorno dalla nascita. Spiegazione dal README, riassunto da MiniCPM.
 [github]
-massimo = 8
-per_tema = 2      # al massimo tanti per tema, per non avere otto agenti
+massimo = 5
+per_tema = 2      # al massimo tanti per tema, per non avere cinque agenti
 stelle_min = 300
 attivi_giorni = 30  # aggiornati da non più di tanti giorni
 [github.temi]     # nome del tema = filtro di ricerca GitHub
@@ -244,6 +244,112 @@ italiani = ["Sinner", "Musetti", "Paolini", "Cobolli", "Berrettini", "Darderi", 
 "canoa" = -5
 "LIVE" = -3
 "DIRETTA" = -3
+
+# ── GAMING ────────────────────────────────────────────────────────────────────
+# Videogiochi: uscite, annunci, recensioni, industria e sviluppo. Le fonti sono tutte di gaming, quindi ogni voce
+# parte da 1 punto; le parole spingono su o giù (offerte, guide, trucchi, cinema e serie tv fuori).
+# Per esteso (titolo e riassunto, se c'è un testo) solo ciò che supera soglia_articolo; il resto è un titolo in barra.
+[gaming]
+ore = 36
+soglia = 3
+soglia_articolo = 7
+articoli = 3
+brevi = 6
+[gaming.parole]
+"data di uscita" = 4
+"release date" = 4
+"uscita" = 2
+"annunciat*" = 2
+"annuncia" = 2
+"announced" = 2
+"announces" = 2
+"recensione" = 3
+"review" = 3
+"remake" = 2
+"remaster*" = 2
+"DLC" = 2
+"espansione" = 2
+"early access" = 2
+"accesso anticipato" = 2
+"indie" = 2
+"Steam" = 2
+"Steam Deck" = 3
+"Switch 2" = 3
+"PS6" = 3
+"Game Pass" = 2
+"Valve" = 2
+"Game Awards" = 3
+"Golden Joystick" = 2
+"Gamescom" = 3
+"Summer Game Fest" = 3
+"Tokyo Game Show" = 3
+"GOTY" = 2
+"Godot" = 4
+"Unity" = 2
+"Unreal Engine" = 3
+"game dev*" = 3
+"sviluppo" = 1
+"acquisition" = 2
+"acquisizione" = 2
+"layoffs" = 3
+"licenziament*" = 3
+"chiusura" = 2
+"shutdown" = 2
+"vendite" = 2
+"sales" = 1
+"record" = 1
+"patch" = 1
+"trailer" = 1
+"gameplay" = 1
+# nomi grossi: contano di più. Modificali in base a ciò che giochi.
+"GTA VI" = 4
+"GTA 6" = 4
+"Rockstar" = 2
+"Nintendo" = 1
+"PlayStation" = 1
+"Xbox" = 1
+"Zelda" = 2
+"Mario" = 1
+"Pokémon" = 1
+"Elden Ring" = 2
+"Silksong" = 3
+"Hollow Knight" = 2
+"Witcher" = 2
+"Cyberpunk" = 2
+"Baldur's Gate" = 2
+"Half-Life" = 3
+"Hades" = 1
+"offert*" = -5
+"sconto" = -5
+"sconti" = -5
+"deal" = -4
+"deals" = -4
+"codici" = -4
+"guida" = -3
+"soluzioni" = -3
+"trucchi" = -3
+"cheat" = -3
+"walkthrough" = -3
+"come ottenere" = -3
+"quiz" = -3
+"meme" = -3
+"gossip" = -3
+"cosplay" = -3
+"anime" = -8
+"cour" = -6
+"Poll:" = -4
+"sondaggio" = -3
+"film" = -3
+"serie tv" = -3
+"Netflix" = -3
+"Wordle" = -6
+"Connections" = -4
+"Black Friday" = -6
+"Prime Day" = -6
+"Amazon" = -3
+"what are we playing" = -6
+"cosa stai giocando" = -4
+"this weekend" = -2
 
 # ── 4. ATTUALITÀ (solo titoli, in barra laterale) ─────────────────────────────
 # Solo fatti avvenuti: un titolo entra se ha un verbo di fatto compiuto (o un participio passato:

@@ -32,9 +32,23 @@ def voto(r):
     return max(0, min(10, r["punti"]))
 
 
-def breve(s):
-    """Il modello sfora spesso il limite di parole: sulla pagina al massimo due frasi."""
-    return " ".join(re.split(r"(?<=[.!?])\s+", (s or "").strip())[:2])
+ABBREVIAZIONI = {"u.s.", "u.k.", "sens.", "sen.", "rep.", "reps.", "gov.", "mr.", "mrs.", "ms.", "dr.", "inc.",
+                 "corp.", "co.", "ltd.", "vs.", "st.", "no.", "jr.", "sr.", "prof.", "dott.", "sig.", "ing.", "avv.",
+                 "ecc.", "e.g.", "i.e.", "a.m.", "p.m."}
+
+
+def breve(s, n=2):
+    """Le prime `n` frasi. Non si ferma dopo un'abbreviazione ("U.S. Sens. Mark Warner...") né dopo un'iniziale
+    ("J. Smith"), e toglie il "[...]" con cui i feed troncano il testo."""
+    s = re.sub(r"\s*\[(?:…|\.\.\.)\]\s*$", "", (s or "").strip())
+    frasi = []
+    for pezzo in re.split(r"(?<=[.!?])\s+", s):
+        ultima = frasi[-1].split()[-1] if frasi else ""
+        if frasi and (ultima.lower() in ABBREVIAZIONI or re.fullmatch(r"[A-ZÀ-Ú]\.", ultima)):
+            frasi[-1] += " " + pezzo
+        else:
+            frasi.append(pezzo)
+    return " ".join(frasi[:n])
 
 
 def autori(s):
@@ -68,6 +82,8 @@ def voce(r, riserva_di=None):
 def articolo(r, classe="", gruppo=None):
     if r["sezione"] == "sport":
         occhiello = f"{SPORT.get(r['rubrica'], 'Sport')} · {escape(r['fonte'])}"
+    elif r["sezione"] == "gaming":
+        occhiello = f"Gaming · {escape(r['fonte'])}"
     else:
         occhiello = f"{RUBRICHE.get(r['rubrica'], 'Notizie')} · {escape(r['fonte'])}"
     if r["copertura"] > 1:
@@ -149,6 +165,7 @@ def pagina(con, data, profilo):
     notizie, brevi = scelti("notizie", "articolo"), scelti("notizie", "breve")
     repo = scelti("github", "articolo")
     sport, sport_brevi = scelti("sport", "articolo"), scelti("sport", "breve")
+    gaming, gaming_brevi = scelti("gaming", "articolo"), scelti("gaming", "breve")
     italia, estero = scelti("attualita", "breve", "AND rubrica='italia'"), scelti("attualita", "breve", "AND rubrica='estero'")
     ricerca = scelti("ricerca", "breve")
     d = dt.date.fromisoformat(data)
@@ -170,9 +187,9 @@ def pagina(con, data, profilo):
     # Barra dei titoli. Le "riserve" sono gli articoli in versione ridotta: nascoste, le usa lo script quando
     # per stare in due fogli deve trasformare un articolo in titolo. L'ordine è anche quello con cui, se la barra
     # non ci sta, si toglie dal fondo: prima la ricerca, poi l'estero, l'Italia, lo sport.
-    lista = lambda righe, riserve=(): "".join(voce(r) for r in righe) + "".join(voce(r, r["id"]) for r in riserve)
+    lista = lambda righe, riserve=(): "".join(voce(r, r["id"]) for r in riserve) + "".join(voce(r) for r in righe)
     laterale = [("brevi", "In breve", lista(brevi, resto)), ("sport", "Sport", lista(sport_brevi, sport)),
-                ("italia", "Italia", lista(italia)), ("estero", "Estero", lista(estero)),
+                ("gaming", "Gaming", lista(gaming_brevi, gaming)), ("italia", "Italia", lista(italia)), ("estero", "Estero", lista(estero)),
                 ("ricerca", "Dalla ricerca", lista(ricerca))]
     laterale = "".join(f'<h2>{nome}</h2><ol class="{chiave}">{voci}</ol>' for chiave, nome, voci in laterale if voci)
 
@@ -188,6 +205,8 @@ def pagina(con, data, profilo):
         flusso += intesta("codice", "Dal codice · i più in crescita nei tuoi temi") + "".join(scheda_repo(r) for r in repo)
     if sport:
         flusso += intesta("sport", "Sport") + "".join(articolo(r, "", "sport") for r in sport)
+    if gaming:
+        flusso += intesta("gaming", "Gaming") + "".join(articolo(r, "", "gaming") for r in gaming)
     if eventi:
         flusso += sezione_weekend(eventi)
     testa = articolo(apertura, "apertura") if apertura else '<p class="vuota">Nessuna notizia per esteso oggi.</p>'
@@ -215,7 +234,7 @@ def pagina(con, data, profilo):
 <div class="strumenti"><a href="?carta">Anteprima di stampa</a><button class="stampa">Stampa</button></div>
 <main class="foglio">
 <header class="testata">
-  <div class="orecchio">Notizie {len(notizie) + len(brevi)}<br>Codice {len(repo)}<br>Sport {len(sport) + len(sport_brevi)}</div>
+  <div class="orecchio">Notizie {len(notizie) + len(brevi)}<br>Codice {len(repo)}<br>Sport {len(sport) + len(sport_brevi)}<br>Gaming {len(gaming) + len(gaming_brevi)}</div>
   <h1>Il Radar</h1>
   {orecchio_meteo(con, data)}
   <p class="riga"><span>Anno {anno} · N. {numero}</span><span>{giorno}</span><span>Tutte le notizie che ti riguardano</span></p>
@@ -493,23 +512,28 @@ function pari(lista, cap) {
   return disponi(lista, [cap, cap]).colonne;
 }
 
-const piuDebole = (declassati) => [...flusso.querySelectorAll("article[data-gruppo]")]
-  .filter((a) => !a.dataset.fisso && !declassati.has(a))
-  .sort((x, y) => (x.dataset.gruppo === "sport" ? 0 : 1) - (y.dataset.gruppo === "sport" ? 0 : 1)
-    || x.dataset.punti - y.dataset.punti)[0];
+// Prima si sacrificano sport e gaming, poi le notizie; dentro ogni gruppo, dal meno importante. Ma l'articolo più
+// forte di sport e di gaming è protetto: una sezione con un articolo vero non resta solo titoli in barra (si
+// sacrifica solo quando non c'è più nient'altro da togliere).
+const livello = (a) => (a.dataset.gruppo === "sport" || a.dataset.gruppo === "gaming" ? 0 : 1);
+const protetti = new Set(["sport", "gaming"].map((g) => [...flusso.querySelectorAll(`article[data-gruppo="${g}"]`)]
+  .sort((x, y) => y.dataset.punti - x.dataset.punti)[0]).filter(Boolean));
+const piuDebole = (declassati) => {
+  const ordinati = (lista) => lista.sort((x, y) => livello(x) - livello(y) || x.dataset.punti - y.dataset.punti);
+  const tutti = [...flusso.querySelectorAll("article[data-gruppo]")].filter((a) => !a.dataset.fisso && !declassati.has(a));
+  return ordinati(tutti.filter((a) => !protetti.has(a)))[0] || ordinati(tutti)[0];
+};
 
-function riempiBarre(pagine, declassati) {
-  const ids = new Set([...declassati].map((a) => a.id));
-  const sezioni = [...barraFonte.querySelectorAll("h2")].map((h) => {
-    const ol = h.nextElementSibling;
-    return { titolo: h.textContent, chiave: ol.className,
-      voci: [...ol.children].filter((li) => !li.classList.contains("riserva") || ids.has(li.dataset.di)) };
-  }).filter((s) => s.voci.length);
+// Riempie le barre foglio dopo foglio, con al massimo `limiti.get(chiave)` voci per sezione. Restituisce ciò che
+// non ci sta, per sezione: { titolo, chiave, inizio, voci }.
+function riempiUna(pagine, sezioni, limiti) {
   const sfora = (b) => b.scrollHeight > b.clientHeight + 1;
-  const fuori = [];                                        // ciò che non ci sta: { titolo, chiave, inizio, voci }
+  const fuori = [];
   let pi = 0, pieno = false;
   for (const s of sezioni) {
-    if (pieno) { fuori.push({ ...s, inizio: 0 }); continue; }
+    const voci = s.voci.slice(0, limiti.get(s.chiave));
+    if (!voci.length) continue;
+    if (pieno) { fuori.push({ ...s, inizio: 0, voci }); continue; }
     let h2, ol;
     const apri = (fatti) => {
       h2 = S("h2");
@@ -519,8 +543,8 @@ function riempiBarre(pagine, declassati) {
       pagine[pi].barra.append(h2, ol);
     };
     apri(0);
-    for (let i = 0; i < s.voci.length; i++) {
-      const li = copia(s.voci[i]);
+    for (let i = 0; i < voci.length; i++) {
+      const li = copia(voci[i]);
       li.classList.remove("riserva");
       ol.append(li);
       if (!sfora(pagine[pi].barra)) continue;
@@ -534,11 +558,47 @@ function riempiBarre(pagine, declassati) {
         ol.children.length || (h2.remove(), ol.remove());
       }
       pieno = true;                                        // niente altri fogli: il resto si prova in coda alle colonne
-      fuori.push({ ...s, inizio: i, voci: s.voci.slice(i) });
+      fuori.push({ ...s, inizio: i, voci: voci.slice(i) });
       break;
     }
   }
   return fuori;
+}
+
+// Ogni sezione della barra (sport, gaming, Italia, estero, ricerca) mantiene almeno MINIMO titoli: se una sezione
+// in fondo resta senza spazio perché "In breve" (dove finiscono anche gli articoli declassati) è lungo, si tolgono
+// voci dalle sezioni che la precedono, la più lunga per prima, finché il minimo c'è per tutte. Le voci tolte si
+// provano poi in coda alle colonne, come quelle che non ci stavano.
+const MINIMO = 3;
+
+function riempiBarre(pagine, declassati) {
+  const ids = new Set([...declassati].map((a) => a.id));
+  const sezioni = [...barraFonte.querySelectorAll("h2")].map((h) => {
+    const ol = h.nextElementSibling;
+    return { titolo: h.textContent, chiave: ol.className,
+      voci: [...ol.children].filter((li) => !li.classList.contains("riserva") || ids.has(li.dataset.di)) };
+  }).filter((s) => s.voci.length);
+  const limiti = new Map(sezioni.map((s) => [s.chiave, s.voci.length]));
+  let fuori;
+  for (let giro = 0; giro < 80; giro++) {
+    pagine.forEach((g) => g.barra.replaceChildren());
+    fuori = riempiUna(pagine, sezioni, limiti);
+    const fuoriDi = (s) => fuori.find((f) => f.chiave === s.chiave)?.voci.length ?? 0;
+    const senzaMinimo = sezioni.findIndex((s) => s.chiave !== "brevi"
+      && limiti.get(s.chiave) - fuoriDi(s) < Math.min(s.voci.length, MINIMO));
+    if (senzaMinimo < 0) break;
+    const candidate = sezioni.slice(0, senzaMinimo)
+      .filter((s) => limiti.get(s.chiave) > (s.chiave === "brevi" ? 0 : MINIMO));
+    if (!candidate.length) break;
+    const s = candidate.reduce((a, b) => (limiti.get(b.chiave) > limiti.get(a.chiave) ? b : a));
+    limiti.set(s.chiave, limiti.get(s.chiave) - 1);
+  }
+  // fuori dalla barra = ciò che non ci sta + ciò che il limite ha tolto, sezione per sezione, in ordine
+  return sezioni.map((s) => {
+    const dentro = s.voci.slice(0, limiti.get(s.chiave)), f = fuori.find((x) => x.chiave === s.chiave);
+    const inizio = f ? f.inizio : dentro.length;
+    return { titolo: s.titolo, chiave: s.chiave, inizio, voci: [...(f ? f.voci : []), ...s.voci.slice(dentro.length)] };
+  }).filter((f) => f.voci.length);
 }
 
 // I titoli che nella barra non stanno finiscono in coda alle colonne dell'ultimo foglio, dove un articolo intero

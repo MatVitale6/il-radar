@@ -67,6 +67,21 @@ ATTUALITA = [
     ("ISTAT", "https://www.istat.it/feed/", "it", 4, "italia"),
 ]
 
+# Gaming: italiane e inglesi; le inglesi le traduce il modello. Eurogamer.it ha un feed con XML rotto.
+GAMING = [
+    ("Everyeye", "https://www.everyeye.it/feed/", "it", 0),
+    ("IGN Italia", "https://it.ign.com/feed.xml", "it", 1),
+    ("GameSpot", "https://www.gamespot.com/feeds/news/", "en", 1),
+    ("PC Gamer", "https://www.pcgamer.com/rss/", "en", 0),
+    ("Rock Paper Shotgun", "https://www.rockpapershotgun.com/feed", "en", 1),
+    ("Polygon", "https://www.polygon.com/rss/index.xml", "en", 0),
+    ("The Verge", "https://www.theverge.com/rss/games/index.xml", "en", 0),
+    ("GamesIndustry.biz", "https://www.gamesindustry.biz/feed", "en", 1),
+    ("Push Square", "https://www.pushsquare.com/feeds/latest", "en", 0),
+    ("Nintendo Life", "https://www.nintendolife.com/feeds/latest", "en", 0),
+    ("Google News", _gnews("videogiochi (uscita OR annunciato OR recensione OR annuncia)", "it", 2), "it", 0),
+]
+
 # Sport: corsa, atletica, tennis, pallavolo, bici. Professionisti e gare amatoriali a Roma.
 SPORT = [
     ("OA Sport", "https://www.oasport.it/feed/", "it", 1),

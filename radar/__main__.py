@@ -20,45 +20,45 @@ RADICE = Path(__file__).resolve().parent.parent
 PROFILO = tomllib.loads((RADICE / "profilo.toml").read_text("utf-8"))
 RUBRICHE_NOTIZIE = ("norme", "sicurezza", "tecnologia")
 
-# Al modello chiediamo solo di tradurre e riassumere: nei test sul giudizio (pertinente sì/no,
-# campo di applicazione) sbagliava troppo. La selezione la fanno le parole chiave.
-SISTEMA = """Sei un redattore italiano. Ricevi titolo e testo (in inglese) di una notizia o di un articolo
-scientifico. Scrivi in italiano corretto, usando SOLO le informazioni ricevute. Rispondi esattamente con due righe:
-TITOLO: titolo di giornale in italiano, massimo 12 parole, fedele all'originale
-RIASSUNTO: una o due frasi in italiano, massimo 40 parole, su cosa è successo, in concreto"""
-SOLO_TITOLO = """Sei un redattore italiano. Traduci in italiano questo titolo di giornale inglese,
-fedelmente, in stile giornalistico, massimo 12 parole. Nomi propri e di prodotti restano come sono.
-Rispondi solo con il titolo tradotto."""
-SPIEGA = """Sei un redattore tecnico italiano. Ricevi nome, descrizione e inizio del README di un progetto software.
-In due o tre frasi in italiano (massimo 60 parole) spiega cos'è e a cosa serve, per uno sviluppatore, usando SOLO
-le informazioni ricevute. Nomi propri e termini tecnici restano come sono. Rispondi solo con la spiegazione."""
+# MiniCPM riassume in inglese i README dei repository; a tradurre ci pensa TranslateGemma (che traduce molto meglio:
+# MiniCPM scriveva "Data centeri sono blind boxes", e ogni tanto in svedese o in cinese). Nei test MiniCPM sul
+# giudizio (pertinente sì/no, campo di applicazione) sbagliava troppo: la selezione la fanno le parole chiave.
+SPIEGA_EN = """You are a technical editor. You receive the name, description and start of the README of a software
+project. In one or two plain sentences (35 words maximum) explain what it is and what it is for, for a software
+developer, using ONLY the information given. Reply with the explanation only."""
 
-
-def _riga(risposta, etichetta):
-    m = re.search(rf"^\W*{etichetta}\W*:\s*(.+)$", risposta, re.IGNORECASE | re.MULTILINE)
-    return _pulita(m[1]) if m else ""
+CINESE = re.compile(r"[⺀-鿿가-힯＀-￯]")
+RIPETUTA = re.compile(r"(\b\S+)(?:\s+\1\b){3,}", re.I)      # la stessa parola 4 volte di fila: il modello è in ciclo
 
 
 def _pulita(s):
     return s.strip().strip('"«»“”*').strip()
 
 
-def _prima_riga(s):
-    return _pulita(s.splitlines()[0]) if s else ""
+def _affidabile(originale, tradotto):
+    """Una traduzione sospetta si scarta e resta l'inglese: vuota, con caratteri cinesi, in ciclo, o lunga/corta
+    in modo strano (l'italiano è più lungo dell'inglese, ma non di tre volte)."""
+    if not tradotto or CINESE.search(tradotto) or RIPETUTA.search(tradotto):
+        return False
+    return 0.5 <= len(tradotto) / max(1, len(originale)) <= 2.6
 
 
-CINESE = re.compile(r"[⺀-鿿가-힯＀-￯]")
-RIPETUTA = re.compile(r"(\b\S+)(?:\s+\1\b){3,}", re.I)      # la stessa parola 4 volte di fila: il modello è in ciclo
+def _tradotta(originale, num_predict):
+    """TranslateGemma con controlli; un secondo tentativo con un po' di casualità; '' se non è affidabile."""
+    for temperatura in (0, 0.4):
+        risposta = llm.traduci(originale, num_predict, temperatura)
+        if _affidabile(originale, risposta):
+            return risposta
+    return ""
 
 
-def _in_italiano(sistema, testo):
-    """MiniCPM è addestrato molto sul cinese e ogni tanto ci ricade ("la trasparenza dei数据中心"):
-    si riprova una volta chiedendolo esplicitamente, poi si rinuncia (chi chiama tiene l'originale)."""
-    risposta = llm.scrivi(sistema, testo)
-    if CINESE.search(risposta) or RIPETUTA.search(risposta):
-        risposta = llm.scrivi(sistema + "\nScrivi solo in italiano, con l'alfabeto latino: nessun carattere cinese,"
-                              " nessuna parola ripetuta.", testo)
-    return "" if CINESE.search(risposta) or RIPETUTA.search(risposta) else risposta
+def _titolo_it(titolo):
+    """Traduce un titolo: il traduttore risponde con una frase, quindi via il punto finale e le virgolette."""
+    t = _tradotta(titolo, 110)
+    t = re.sub(r"\s+", " ", t).strip()
+    if len(t) > 1 and t[0] in '"«“' and t[-1] in '"»”':
+        t = t[1:-1]
+    return t.rstrip(". ") if not t.endswith("...") else t
 
 
 # ── punteggio ─────────────────────────────────────────────────────────────────
@@ -112,6 +112,14 @@ def valuta_sport(e):
     else:
         rubrica = next((s for s, chiavi in SPORT_DI.items() if any(k in discipline for k in chiavi)), "atletica")
     return punti, _elenco(importanza, discipline, dict.fromkeys(italiani, 3)), rubrica
+
+
+def valuta_gaming(e):
+    cfg, testo = PROFILO["gaming"], e["titolo"] + " \n " + e["testo"]
+    parole = trovate(testo, cfg["parole"])
+    # tutte le fonti sono di gaming: ogni voce parte da 1; le parole la spingono su (uscite, annunci, recensioni,
+    # industria, sviluppo) o giù (offerte, guide, trucchi, cinema e serie tv)
+    return 1 + sum(parole.values()) + e["peso"], _elenco(parole), None
 
 
 PARTICIPIO = re.compile(r"\b\w{3,}(?:at|it|ut)[oaie]\b", re.I)          # "approvato", "perquisiti", "intitolato"
@@ -270,6 +278,10 @@ def _raccogli_feed(con, oggi, sezione, elenco, ore, valuta):
 
 def raccogli_sport(con, oggi):
     _raccogli_feed(con, oggi, "sport", fonti.SPORT, PROFILO["sport"]["ore"], valuta_sport)
+
+
+def raccogli_gaming(con, oggi):
+    _raccogli_feed(con, oggi, "gaming", fonti.GAMING, PROFILO["gaming"]["ore"], valuta_gaming)
 
 
 def raccogli_attualita(con, oggi):
@@ -449,6 +461,8 @@ def scegli(con, oggi):
     _scegli(con, oggi, "notizie", [("articolo", n["massimo"], n["soglia"], True), ("breve", n["brevi"], n["soglia"], False)])
     _scegli_repo(con, oggi)
     _scegli(con, oggi, "sport", [("articolo", s["articoli"], s["soglia_articolo"], True), ("breve", s["brevi"], s["soglia"], False)])
+    gm = PROFILO["gaming"]
+    _scegli(con, oggi, "gaming", [("articolo", gm["articoli"], gm["soglia_articolo"], True), ("breve", gm["brevi"], gm["soglia"], False)])
     for zona in ("italia", "estero"):
         _scegli(con, oggi, "attualita", [("breve", a["per_zona"], 1, False)], rubrica=zona)
     _scegli_weekend(con, oggi)
@@ -456,20 +470,16 @@ def scegli(con, oggi):
     con.commit()
 
 
-def _spiegazione(con, r, oggi):
-    """Due o tre frasi su cos'è il repository, dal README. Se è già uscito un altro giorno, si riusa quella."""
-    gia = con.execute("SELECT riassunto FROM elementi WHERE sezione='github' AND titolo=? AND visto_il<?"
-                      " AND length(riassunto)>60 ORDER BY visto_il DESC LIMIT 1", (r["titolo"], oggi)).fetchone()
-    if gia:
-        return gia[0]
+def _spiegazione_en(r):
+    """MiniCPM: due o tre frasi in inglese su cos'è il repository, dal README (poi si traducono)."""
     try:
         inizio = fonti.readme(r["titolo"])
     except Exception:                                   # niente README: basta la descrizione
         inizio = ""
     if not (inizio or r["testo"]):
         return ""
-    risposta = _in_italiano(SPIEGA, f"Progetto: {r['titolo']}\nDescrizione: {r['testo']}\n\nREADME: {inizio}")
-    return " ".join(_pulita(re.sub(r"^\W*spiegazione\W*:\s*", "", risposta, flags=re.I)).split()) or r["testo"]
+    risposta = llm.scrivi(SPIEGA_EN, f"Project: {r['titolo']}\nDescription: {r['testo']}\n\nREADME: {inizio}")
+    return "" if CINESE.search(risposta) or RIPETUTA.search(risposta) else " ".join(_pulita(risposta).split())
 
 
 def traduci(con, oggi):
@@ -481,32 +491,56 @@ def traduci(con, oggi):
         con.execute("UPDATE elementi SET titolo_it=?, riassunto=? WHERE id=?",
                     (r["titolo"], giornale.breve(r["testo"]), r["id"]))
     con.commit()
-    righe = [r for r in righe if r["lingua"] != "it"]
-    print(f"da tradurre: {len(righe)} (italiane pronte: {len(italiane)})", flush=True)
-    if not righe:
+    inglesi = [r for r in righe if r["lingua"] != "it"]
+    print(f"da tradurre: {len(inglesi)} (italiane pronte: {len(italiane)})", flush=True)
+    if not inglesi:
         return
     with llm.ollama():
-        for i, r in enumerate(righe, 1):
+        # 1. MiniCPM: i repository nuovi. Uno già spiegato un altro giorno riusa la spiegazione (già in italiano),
+        # ma solo se scritta con questa pipeline: fino al 26/9 le spiegazioni le scriveva MiniCPM in italiano
+        # ("un piattaforma", "composazione"). Sulla scheda da 4 GB i due modelli non stanno insieme: prima tutto
+        # MiniCPM, poi tutte le traduzioni.
+        inglese = {}
+        for r in inglesi:
+            if r["sezione"] != "github":
+                continue
+            gia = con.execute("SELECT riassunto FROM elementi WHERE sezione='github' AND titolo=? AND visto_il<?"
+                              " AND visto_il>'2026-09-26' AND length(riassunto)>60 ORDER BY visto_il DESC LIMIT 1",
+                              (r["titolo"], oggi)).fetchone()
+            try:
+                inglese[r["id"]] = ("it", gia[0]) if gia else ("en", _spiegazione_en(r))
+            except OSError as err:
+                print(f"     MiniCPM non disponibile ({err}): {r['titolo']}", flush=True)
+                inglese[r["id"]] = ("en", r["testo"])
+        # 2. TranslateGemma: titoli e prime frasi dei testi
+        usati = set()                                # certi feed (The Verge) mandano lo stesso testo per più articoli
+        for i, r in enumerate(inglesi, 1):
             t0 = time.time()
             try:
                 if r["sezione"] == "github":
-                    titolo, riassunto = r["titolo"], _spiegazione(con, r, oggi)
-                elif r["ruolo"] == "breve" or not r["testo"]:
-                    titolo, riassunto = _prima_riga(_in_italiano(SOLO_TITOLO, r["titolo"])), ""
+                    lingua, spiegazione = inglese[r["id"]]
+                    titolo = r["titolo"]
+                    if lingua == "it":
+                        riassunto = spiegazione
+                    else:                            # se MiniCPM non ha risposto, si traduce la descrizione del repository
+                        originale = spiegazione or r["testo"]
+                        riassunto = (_tradotta(originale, 220) or originale) if originale else ""
+                    riassunto = giornale.breve(riassunto)     # una piccola descrizione: due frasi al massimo
                 else:
-                    risposta = _in_italiano(SISTEMA, f"Titolo: {r['titolo']}\n\nTesto: {r['testo']}")
-                    titolo, riassunto = _riga(risposta, "titolo"), _riga(risposta, "riassunto")
-                    if not riassunto:
-                        # risposta fuori formato: esce comunque, col testo originale
-                        print(f"     risposta fuori formato, resta in inglese: {risposta[:80]!r}", flush=True)
-                        riassunto = giornale.breve(r["testo"])
-            except OSError as err:                  # timeout o Ollama giù: questo resta in originale, il giro va avanti
+                    titolo = _titolo_it(r["titolo"]) or None
+                    originale = "" if r["ruolo"] == "breve" else giornale.breve(r["testo"])
+                    if originale in usati:
+                        originale = ""
+                    usati.add(originale)
+                    riassunto = (_tradotta(originale, 240) or originale) if originale else ""
+            except OSError as err:                  # timeout o Ollama giù: questo resta in inglese, il giro va avanti
                 print(f"     modello non disponibile ({err}), resta in inglese", flush=True)
-                titolo, riassunto = None, giornale.breve(r["testo"])
-            con.execute("UPDATE elementi SET titolo_it=?, riassunto=? WHERE id=?",
-                        (titolo or None, riassunto, r["id"]))
+                titolo, riassunto = None, "" if r["ruolo"] == "breve" else giornale.breve(r["testo"])
+            con.execute("UPDATE elementi SET titolo_it=?, riassunto=? WHERE id=?", (titolo, riassunto, r["id"]))
             con.commit()
-            print(f"  {i:>2}/{len(righe)} {r['sezione']:<8} {time.time() - t0:4.1f}s  {r['titolo'][:60]}", flush=True)
+            if r["sezione"] != "github" and not titolo:
+                print(f"     titolo lasciato in inglese: {r['titolo'][:70]}", flush=True)
+            print(f"  {i:>2}/{len(inglesi)} {r['sezione']:<8} {time.time() - t0:4.1f}s  {r['titolo'][:60]}", flush=True)
 
 
 def impagina(con, oggi):
@@ -546,6 +580,7 @@ def main():
         raccogli_repo(con, oggi)
         raccogli_sport(con, oggi)
         raccogli_attualita(con, oggi)
+        raccogli_gaming(con, oggi)
         if dt.date.today().weekday() >= 5:     # sabato e domenica: il weekend a Roma al posto della ricerca
             raccogli_weekend(con, oggi)
         else:

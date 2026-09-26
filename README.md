@@ -1,7 +1,7 @@
 # Il Radar
 
-Giornale personale del mattino: raccoglie notizie, repository, sport e attualità, li seleziona con le parole
-chiave del profilo, fa tradurre e riassumere l'inglese a un modello locale (MiniCPM4.1 via Ollama) e li impagina
+Giornale personale del mattino: raccoglie notizie, repository, sport, gaming e attualità, li seleziona con le
+parole chiave del profilo, fa tradurre l'inglese a un traduttore locale (TranslateGemma 4B via Ollama) e li impagina
 come un quotidiano in bianco e nero, stampabile in 2 fogli A4.
 
 Solo libreria standard Python. Niente testo esce dal PC.
@@ -33,9 +33,9 @@ Testata con il meteo di San Paolo (Aeronautica Militare; Open-Meteo con il model
 due colonne per tutta l'altezza, come un quotidiano:
 
 - **a sinistra (3/4)**: l'apertura; le notizie su AI e sviluppo con riassunto, in rubriche (Governi e regole,
-  Cybersicurezza, AI e sviluppo); i repository GitHub con spiegazione; lo sport importante. Sabato e domenica
-  anche *Il weekend a Roma e dintorni* (guide, musica, sagre, mostre).
-- **a destra (1/4)**: i titoli — In breve, Italia, Estero, Sport, Dalla ricerca.
+  Cybersicurezza, AI e sviluppo); 5 repository GitHub con spiegazione; lo sport importante; il gaming. Sabato e
+  domenica anche *Il weekend a Roma e dintorni* (guide, musica, sagre, mostre).
+- **a destra (1/4)**: i titoli — In breve, Sport, Gaming, Italia, Estero, Dalla ricerca.
 
 **Stampa: al massimo 2 fogli A4.** I fogli li costruisce lo script della pagina, non il browser. Appena la pagina
 è aperta (e caricati i caratteri) lo script misura ogni articolo e lo dispone a mano nelle colonne di due fogli da
@@ -45,9 +45,11 @@ pronti. Perché non lasciar fare al browser: Firefox (il browser predefinito) no
 colonne tra due pagine e lo sposta intero sulla successiva, lasciando la prima con la sola testata; Edge e Chrome
 lo spezzano. Con fogli a misura fissa non c'è niente da spezzare e il risultato è identico ovunque.
 
-- se il flusso non sta in due fogli, l'articolo meno importante (prima lo sport, poi le notizie) diventa un titolo
-  nella barra e si riprova; i riassunti non si accorciano mai
-- la barra dei titoli si riempie foglio dopo foglio; i titoli che non ci stanno vanno in coda alle colonne
+- se il flusso non sta in due fogli, l'articolo meno importante (prima lo sport e il gaming, poi le notizie)
+  diventa un titolo nella barra e si riprova; i riassunti non si accorciano mai. L'articolo più forte di sport e di
+  gaming è protetto: una sezione con un articolo vero non resta solo titoli
+- la barra dei titoli si riempie foglio dopo foglio, con gli articoli declassati in cima a "In breve"; ogni sezione
+  (sport, gaming, Italia, estero, ricerca) mantiene almeno 3 titoli: se non ci stanno, si tolgono voci da "In breve"; i titoli che non ci stanno vanno in coda alle colonne
   dell'ultimo foglio, negli spazi bianchi lasciati dagli articoli interi; quelli che non entrano nemmeno lì
   non si stampano (prima la ricerca, poi l'estero, l'Italia, lo sport)
 - se le notizie stanno in un foglio solo e restano fuori al massimo 2 titoli, si stampa un foglio solo
@@ -65,6 +67,9 @@ lo spezzano. Con fogli a misura fissa non c'è niente da spezzare e il risultato
      dalla nascita). Al massimo `per_tema` per tema; ripetizioni ammesse
    - sport: OA Sport, FIDAL, Runner's World, ANSA + Google News per le gare a Roma. Importanza dal titolo (record,
      titoli, grandi eventi, atleti italiani); niente calcio. Per esteso solo se importante
+   - gaming: Everyeye, IGN Italia, GameSpot, PC Gamer, Rock Paper Shotgun, Polygon, The Verge, GamesIndustry.biz,
+     Push Square, Nintendo Life + Google News. Uscite, annunci, recensioni, industria e sviluppo; fuori offerte,
+     guide, trucchi, anime. Per esteso solo le voci forti con un testo; le altre sono titoli in barra
    - attualità: ANSA, Il Fatto Quotidiano, ISTAT. Solo fatti avvenuti: verbo di fatto compiuto o participio
      passato, niente ipotesi, domande, sole dichiarazioni, calcio
    - ricerca: arXiv (cs.AI, cs.LG, cs.CR), solo titoli
@@ -72,9 +77,12 @@ lo spezzano. Con fogli a misura fissa non c'è niente da spezzare e il risultato
    inglese) diventa una sola, con "su N testate" e punti in più
 3. **selezione** — parole chiave pesate in `profilo.toml`. Per esteso solo ciò che ha un testo da riassumere:
    Google News dà solo titoli, e quelli vanno in barra
-4. **MiniCPM** (`radar/llm.py`) — traduce e riassume solo l'inglese; spiega i repository dal README. Testo semplice
-   (il JSON lo sbaglia spesso), tetto di lunghezza, penalità per le ripetizioni. Se scrive caratteri cinesi o va
-   in ciclo riprova una volta, poi resta l'originale. Un errore lascia in originale solo quella voce
+4. **modelli locali** (`radar/llm.py`) — **TranslateGemma 4B** traduce dall'inglese all'italiano i titoli e le prime
+   due frasi dei testi. È fatto apposta e traduce bene; MiniCPM4.1, provato per primo, scriveva "Data centeri sono
+   blind boxes" (e a volte in svedese o in cinese). Una traduzione sospetta (vuota, in ciclo, con caratteri cinesi,
+   troppo lunga o troppo corta) si riprova una volta e poi resta in inglese. **MiniCPM4.1** riassume in inglese i
+   README dei repository, poi li traduce TranslateGemma. Sulla scheda da 4 GB i due modelli non stanno insieme: si
+   usano a blocchi (prima tutto MiniCPM, poi tutte le traduzioni). Un errore lascia in originale solo quella voce
 5. **impaginazione** (`radar/giornale.py`) — a fine giro anche il PDF identico alla stampa, in `edizioni/`
 6. **giudizi** — i pulsanti sulla pagina salvano +1/-1 nel database, per tarare profilo e soglie
 
@@ -91,9 +99,9 @@ attualità, weekend a Roma), non una scelta obbligata. Cosa si tocca, dal più s
      nell'intestazione del file
    - quante voci e con quali soglie: `massimo`, `brevi`, `soglia`, `ore` in ogni sezione
    - `[github.temi]` (un tema = un filtro di ricerca GitHub), `[sport]` (discipline, importanza, atleti da seguire),
-     `[attualita]` (verbi di fatto compiuto, ipotesi da scartare, argomenti da escludere), `[weekend]` (luoghi,
-     testate locali, rubriche)
-2. **`radar/fonti.py`** — le testate: gli elenchi `NOTIZIE`, `ATTUALITA`, `SPORT`, `EVENTI` (nome, indirizzo del
+     `[gaming]` (parole che spingono su o giù, nomi grossi), `[attualita]` (verbi di fatto compiuto, ipotesi da
+     scartare, argomenti da escludere), `[weekend]` (luoghi, testate locali, rubriche)
+2. **`radar/fonti.py`** — le testate: gli elenchi `NOTIZIE`, `ATTUALITA`, `SPORT`, `GAMING`, `EVENTI` (nome, indirizzo del
    feed, lingua, peso) e le ricerche su Google News (`_gnews`)
 3. **il codice, solo per cambiare la struttura** — i nomi delle tre rubriche delle notizie stanno in
    `radar/giornale.py` (`RUBRICHE`) e le loro chiavi in `radar/__main__.py` (`RUBRICHE_NOTIZIE`): per cambiare le
@@ -104,8 +112,9 @@ Una sezione senza voci quel giorno non compare. Dopo ogni modifica: `py -m radar
 ## Cartelle non versionate
 
 - `runtime/ollama/` — Ollama portabile (v0.34.4), nessuna installazione di sistema
-- `runtime/models/` — i pesi (`openbmb/minicpm4.1`, 5 GB)
+- `runtime/models/` — i pesi: `translategemma:4b` (3,3 GB) e `openbmb/minicpm4.1` (5 GB)
 - `data/` (database, log, profili Edge), `edizioni/` (HTML e PDF di ogni giorno)
 
 Per rimettere in piedi il runtime su un altro PC: scaricare `ollama-windows-amd64.zip` dalle release di Ollama in
-`runtime/ollama/`, poi con `OLLAMA_MODELS=runtime/models` eseguire `ollama pull openbmb/minicpm4.1`.
+`runtime/ollama/`, poi con `OLLAMA_MODELS=runtime/models` eseguire `ollama pull translategemma:4b` e
+`ollama pull openbmb/minicpm4.1`.
