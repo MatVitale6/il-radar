@@ -439,17 +439,22 @@ def _scegli(con, oggi, sezione, piani, rubrica=None):
 
 
 def _scegli_repo(con, oggi):
-    """Gli 8 che crescono di più, al massimo `per_tema` per tema. Ogni giorno da capo: le ripetizioni vanno bene."""
+    """I più forti, al massimo `per_tema` per tema, saltando quelli già usciti negli ultimi `raffreddamento`
+    giorni: senza uno storico di stelle abbastanza lungo, i grandi repository storici hanno sempre lo stesso
+    punteggio (media dalla nascita) e altrimenti uscirebbero ogni giorno."""
     g = PROFILO["github"]
     if con.execute("SELECT 1 FROM elementi WHERE visto_il=? AND sezione='github' AND ruolo IS NOT NULL",
                    (oggi,)).fetchone():
         return
+    recenti = {r[0] for r in con.execute(
+        "SELECT titolo FROM elementi WHERE sezione='github' AND ruolo='articolo' AND visto_il>=? AND visto_il<?",
+        ((dt.date.fromisoformat(oggi) - dt.timedelta(days=g["raffreddamento"])).isoformat(), oggi))}
     per_tema, presi = {}, 0
-    for r in con.execute("SELECT id, rubrica FROM elementi WHERE visto_il=? AND sezione='github' ORDER BY punti DESC",
-                         (oggi,)).fetchall():
+    for r in con.execute("SELECT id, titolo, rubrica FROM elementi WHERE visto_il=? AND sezione='github'"
+                         " ORDER BY punti DESC", (oggi,)).fetchall():
         if presi >= g["massimo"]:
             break
-        if per_tema.get(r["rubrica"], 0) >= g["per_tema"]:
+        if r["titolo"] in recenti or per_tema.get(r["rubrica"], 0) >= g["per_tema"]:
             continue
         per_tema[r["rubrica"]] = per_tema.get(r["rubrica"], 0) + 1
         presi += 1

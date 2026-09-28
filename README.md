@@ -62,9 +62,10 @@ lo spezzano. Con fogli a misura fissa non c'è niente da spezzare e il risultato
 
 1. **raccolta** (`radar/fonti.py`)
    - notizie: feed RSS di testate tech, cyber e di politica digitale (EN e IT) + Google News mirato
-   - GitHub: i più seguiti di ogni tema del profilo, aggiornati nell'ultimo mese. Le stelle si registrano ogni
+   - GitHub: i 3 più seguiti dei temi del profilo, aggiornati nell'ultimo mese. Le stelle si registrano ogni
      giorno (tabella `stelle`): "vanno forte" = stelle guadagnate in 7 giorni (finché manca lo storico, la media
-     dalla nascita). Al massimo `per_tema` per tema; ripetizioni ammesse
+     dalla nascita — per i grandi repository storici è sempre lo stesso numero). Al massimo `per_tema` per tema;
+     un repository già uscito non ritorna prima di `raffreddamento` giorni, altrimenti sarebbero sempre gli stessi
    - sport: OA Sport, FIDAL, Runner's World, ANSA + Google News per le gare a Roma. Importanza dal titolo (record,
      titoli, grandi eventi, atleti italiani); niente calcio. Per esteso solo se importante
    - gaming: Everyeye, IGN Italia, GameSpot, PC Gamer, Rock Paper Shotgun, Polygon, The Verge, GamesIndustry.biz,

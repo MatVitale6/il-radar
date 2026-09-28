@@ -156,12 +156,14 @@ copertura = 2     # punti in più per ogni altra testata che dà la stessa notiz
 # ── 2. REPOSITORY GITHUB ──────────────────────────────────────────────────────
 # I più seguiti dei tuoi temi (anche vecchi, anche già visti), ordinati per quanto crescono adesso:
 # stelle guadagnate negli ultimi 7 giorni, dallo storico che il radar registra ogni giorno. Finché lo
-# storico non c'è, la media di stelle al giorno dalla nascita. Spiegazione dal README, riassunto da MiniCPM.
+# storico non c'è, la media di stelle al giorno dalla nascita (per i grandi repository storici è sempre
+# lo stesso numero: senza un `raffreddamento` uscirebbero ogni giorno). Spiegazione dal README, riassunto da MiniCPM.
 [github]
-massimo = 5
-per_tema = 2      # al massimo tanti per tema, per non avere cinque agenti
+massimo = 3
+per_tema = 1      # al massimo tanti per tema, per non avere tre agenti
 stelle_min = 300
-attivi_giorni = 30  # aggiornati da non più di tanti giorni
+attivi_giorni = 30    # aggiornati da non più di tanti giorni
+raffreddamento = 5    # un repo già uscito non ritorna prima di tanti giorni
 [github.temi]     # nome del tema = filtro di ricerca GitHub
 "Agenti AI" = "topic:ai-agents"
 "MCP" = "topic:mcp"
