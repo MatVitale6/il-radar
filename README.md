@@ -10,7 +10,7 @@ impagina tutto come la prima pagina di un quotidiano in bianco e nero: **due fog
   servizio di intelligenza artificiale esterno.
 - **Su misura.** Città, sezioni, argomenti e fonti sono un file di configurazione, e c'è una TUI per cambiarli.
 
-Come è fatto e perché: <https://matteovitale.dev/progetti/radar>
+Come è fatto e perché: <https://matteovitale.dev/progetti/radar>  ·  Licenza: [MIT](LICENSE)
 
 ## Installazione (Docker)
 

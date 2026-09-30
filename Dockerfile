@@ -23,7 +23,7 @@ VOLUME /dati
 EXPOSE 8765
 LABEL org.opencontainers.image.source="https://github.com/MatVitale6/il-radar" \
       org.opencontainers.image.description="Il Radar: giornale personale del mattino, scelto con le tue regole e pronto da stampare" \
-      org.opencontainers.image.licenses="NOASSERTION"
+      org.opencontainers.image.licenses="MIT"
 
 ENTRYPOINT ["radar-entrypoint"]
 CMD ["avvia"]
