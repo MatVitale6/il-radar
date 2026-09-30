@@ -1,4 +1,6 @@
-# Chi sei, per il radar. Il giornale ha tre parti, in quest'ordine: notizie, repository GitHub, ricerca.
+# Il profilo di esempio del Radar. Al primo avvio viene copiato in `profilo.toml`, nella cartella dei dati: quello è
+# il tuo, e lo cambi a mano oppure con la TUI (`python -m radar tui`, in Docker `docker exec -it radar python3 -m radar tui`).
+# Ogni sezione ha `attiva = true/false`. Un giornale ha: notizie, repository GitHub, sport, gaming, attualità, ricerca.
 #
 # Come si scrivono le parole chiave (valgono in tutte le tabelle `parole`):
 # - si cercano in titolo e testo; il peso si somma una volta per parola; pesi negativi = spingi giù
@@ -10,26 +12,25 @@
 # Il modello locale si è dimostrato inaffidabile nel giudicare: seleziona tutto il codice, lui traduce e riassume.
 
 descrizione = """
-Matteo Vitale, ingegnere e sviluppatore freelance in Italia. Lavora su: sviluppo web e grafica 3D
-(Vite, JavaScript, three.js, WebGL), automazioni e pipeline in Python, AI applicata (agenti LLM,
-uso di strumenti, RAG, modelli piccoli che girano in locale), sicurezza informatica (sicurezza dei
-sistemi AI, del web e del software). Segue anche le notizie istituzionali: leggi e limiti sull'AI,
-data center, attacchi informatici a paesi e aziende, sovranità digitale europea.
+Esempio: sviluppatore che segue tecnologia e sicurezza informatica (AI, agenti, modelli locali, sicurezza del web e del
+software), le notizie istituzionali che le riguardano (leggi e limiti sull'AI, data center, attacchi informatici),
+qualche sport e i videogiochi. Riscrivila per te: per ora è solo un promemoria, non la legge nessun modello.
 """
 
 [giornale]
 fondo = 15        # quanti "rimasti fuori" mostrare in fondo, per i tuoi giudizi
 
 [meteo]                   # Aeronautica Militare (meteoam.it), Open-Meteo di riserva
-citta = "San Paolo"
-lat = 41.859
-lon = 12.482
+citta = "Roma"
+lat = 41.89
+lon = 12.49
 
 # ── 1. NOTIZIE ────────────────────────────────────────────────────────────────
 [notizie]
+attiva = true
 ore = 36          # notizie più vecchie di così alla fonte non entrano
 soglia = 4        # punti minimi
-massimo = 12      # pubblicate per esteso (le inglesi tradotte da MiniCPM, ~35 s l'una)
+massimo = 12      # pubblicate per esteso (le inglesi le traduce TranslateGemma, ~10 s l'una)
 brevi = 10        # le successive, solo titolo, nella colonna "In breve"
 copertura = 2     # punti in più per ogni altra testata che dà la stessa notizia
 # Tre gruppi = tre rubriche. Una notizia finisce nella rubrica dove prende più punti, ma entra
@@ -159,6 +160,7 @@ copertura = 2     # punti in più per ogni altra testata che dà la stessa notiz
 # storico non c'è, la media di stelle al giorno dalla nascita (per i grandi repository storici è sempre
 # lo stesso numero: senza un `raffreddamento` uscirebbero ogni giorno). Spiegazione dal README, riassunto da MiniCPM.
 [github]
+attiva = true
 massimo = 3
 per_tema = 1      # al massimo tanti per tema, per non avere tre agenti
 stelle_min = 300
@@ -179,6 +181,7 @@ raffreddamento = 5    # un repo già uscito non ritorna prima di tanti giorni
 # Un fatto importante (punti >= soglia_articolo, con testo) esce con titolo e riassunto; il resto solo
 # titolo; nei giorni vuoti la sezione non c'è.
 [sport]
+attiva = true
 ore = 36
 soglia = 5
 soglia_articolo = 12
@@ -252,6 +255,7 @@ italiani = ["Sinner", "Musetti", "Paolini", "Cobolli", "Berrettini", "Darderi", 
 # parte da 1 punto; le parole spingono su o giù (offerte, guide, trucchi, cinema e serie tv fuori).
 # Per esteso (titolo e riassunto, se c'è un testo) solo ciò che supera soglia_articolo; il resto è un titolo in barra.
 [gaming]
+attiva = true
 ore = 36
 soglia = 3
 soglia_articolo = 7
@@ -358,6 +362,7 @@ brevi = 6
 # approvato, perquisiti) e nessuna parola di ipotesi; fuori anche le domande e le sole dichiarazioni.
 # Si perde qualcosa di valido, ma non entrano "si discute", "potrebbe", "verso".
 [attualita]
+attiva = true
 ore = 30
 per_zona = 5
 certo = ["approvat*", "entra in vigore", "entrano in vigore", "in vigore", "firmat*", "firma", "eletto", "eletta",
@@ -381,6 +386,7 @@ escludi = ["calcio", "Serie A", "calciomercato", "Champions League", "allenatore
 
 # ── WEEKEND A ROMA (sabato e domenica, al posto della ricerca) ──────────────
 [weekend]
+attiva = false    # è l'agenda di Roma: per usarla per la tua città riscrivi `luoghi` e le fonti
 ore = 96          # annunci più vecchi di così non entrano
 massimo = 14      # eventi in pagina (fonti italiane: niente modello)
 soglia = 3
@@ -445,6 +451,7 @@ fonti_locali = ["lazioeventi.com", "RomaToday", "romapop.it", "Roma.Com", "EZ Ro
 
 # ── 5. RICERCA (arXiv): solo titoli, in barra laterale ────────────────────────
 [ricerca]
+attiva = true
 soglia = 6        # voto minimo (0-10)
 massimo = 5
 

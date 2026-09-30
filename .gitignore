@@ -2,3 +2,6 @@ runtime/
 data/
 edizioni/
 __pycache__/
+# il profilo di chi usa il Radar è suo: nel repository c'è solo profilo.esempio.toml
+profilo.toml
+profilo.toml.bak

@@ -1,0 +1,7 @@
+# solo ciò che serve all'immagine (runtime/ pesa gigabyte di modelli)
+*
+!radar
+!profilo.esempio.toml
+!docker
+radar/__pycache__
+**/__pycache__

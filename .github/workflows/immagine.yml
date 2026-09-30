@@ -1,0 +1,59 @@
+name: immagine
+
+# A ogni push su main prova il codice, costruisce l'immagine, controlla che parta e la pubblica su ghcr.io
+# (ghcr.io/<utente>/<repository>:latest). Serve solo il GITHUB_TOKEN che GitHub dà a ogni esecuzione.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  immagine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: test
+        run: python -m unittest discover -s tests
+
+      - name: nome dell'immagine, in minuscolo
+        run: echo "IMMAGINE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: costruisce l'immagine
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ${{ env.IMMAGINE }}:prova
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: l'immagine parte (senza scaricare modelli)
+        run: |
+          docker run --rm -e RADAR_DATI=/tmp/dati --entrypoint python3 "$IMMAGINE:prova" \
+            -c "import radar.__main__ as m; print('profilo letto:', sorted(m.PROFILO))"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: pubblica
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMMAGINE }}:latest
+            ${{ env.IMMAGINE }}:${{ github.sha }}
+          cache-from: type=gha

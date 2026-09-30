@@ -1,0 +1,17 @@
+# docker compose up -d      → http://localhost:8765
+# Per la GPU NVIDIA aggiungi sotto `radar:`  →  gpus: all
+services:
+  radar:
+    image: ghcr.io/matvitale6/il-radar:latest
+    container_name: radar
+    ports:
+      - "127.0.0.1:8765:8765"        # solo questo computer; per il telefono in casa: "8765:8765"
+    volumes:
+      - dati:/dati                   # database, edizioni, il tuo profilo, i modelli
+    environment:
+      TZ: Europe/Rome
+      RADAR_ORA: "07:30"             # a che ora parte il giro del mattino
+      # RADAR_MODELLI: "translategemma:4b openbmb/minicpm4.1"   # MiniCPM (5 GB) spiega i repository GitHub
+    restart: unless-stopped
+volumes:
+  dati:

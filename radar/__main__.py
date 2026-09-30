@@ -1,14 +1,19 @@
 """Il Radar.
 
-    py -m radar giro      raccoglie, seleziona, fa tradurre/riassumere a MiniCPM e impagina l'edizione di oggi
+    py -m radar giro      raccoglie, seleziona, traduce e impagina l'edizione di oggi
     py -m radar serve     tiene acceso il giornale su http://127.0.0.1:8765 (all'avvio del PC, senza finestre)
     py -m radar apri      apre il giornale nel browser, accendendo il server se serve (l'icona sul desktop)
+    py -m radar demone    server sempre acceso + un giro al giorno (RADAR_ORA, default 07:30): è ciò che fa Docker
+    py -m radar tui       configura il proprio radar (città, sezioni, argomenti, repository) con dei menu
 """
 import datetime as dt
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
+import threading
 import time
 import tomllib
 from functools import cache
@@ -16,8 +21,26 @@ from pathlib import Path
 
 from . import db, fonti, giornale, llm
 
-RADICE = Path(__file__).resolve().parent.parent
-PROFILO = tomllib.loads((RADICE / "profilo.toml").read_text("utf-8"))
+RADICE = db.RADICE
+
+
+def carica_profilo():
+    """Il profilo è `profilo.toml` nella cartella dei dati. La prima volta non c'è: si parte dall'esempio."""
+    f = db.DATI / "profilo.toml"
+    if not f.exists():
+        f.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(RADICE / "profilo.esempio.toml", f)
+    return tomllib.loads(f.read_text("utf-8"))
+
+
+PROFILO = carica_profilo()
+
+
+def attiva(sezione):
+    """Ogni sezione del profilo ha `attiva = true/false` (se manca, è accesa)."""
+    return PROFILO.get(sezione, {}).get("attiva", True)
+
+
 RUBRICHE_NOTIZIE = ("norme", "sicurezza", "tecnologia")
 
 # MiniCPM riassume in inglese i README dei repository; a tradurre ci pensa TranslateGemma (che traduce molto meglio:
@@ -549,22 +572,32 @@ def traduci(con, oggi):
 
 
 def impagina(con, oggi):
-    uscita = RADICE / "edizioni" / f"{oggi}.html"
+    uscita = db.DATI / "edizioni" / f"{oggi}.html"
     uscita.parent.mkdir(exist_ok=True)
     uscita.write_text(giornale.pagina(con, oggi, PROFILO), "utf-8")
     print(f"edizione: {uscita}", flush=True)
     archivia_pdf(uscita)
 
 
-EDGE = Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")
+def _browser():
+    """Un Chromium/Chrome/Edge per stampare il PDF: quello nel PATH o, su Windows, Edge. Senza, il PDF si salta."""
+    for nome in ("chromium", "chromium-browser", "google-chrome", "msedge"):
+        if percorso := shutil.which(nome):
+            return percorso
+    edge = Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")
+    return edge if edge.exists() else None
 
 
 def archivia_pdf(html):
     """L'edizione come esce dalla stampante (?carta: due fogli, niente intestazioni), accanto all'HTML.
-    ~0,5 MB al giorno. Edge senza finestra, con un profilo suo per non toccare quello di tutti i giorni."""
+    ~0,5 MB al giorno. Browser senza finestra, con un profilo suo per non toccare quello di tutti i giorni."""
+    browser = _browser()
+    if not browser:
+        print("  pdf saltato (nessun browser: si stampa dal browser, dalla pagina)", flush=True)
+        return
     pdf = html.with_suffix(".pdf")
     try:
-        subprocess.run([EDGE, "--headless=new", "--disable-gpu", f"--user-data-dir={RADICE / 'data' / 'edge-pdf'}",
+        subprocess.run([browser, "--headless=new", "--disable-gpu", f"--user-data-dir={db.DATI / 'data' / 'edge-pdf'}",
                         "--virtual-time-budget=10000", "--no-pdf-header-footer", f"--print-to-pdf={pdf}",
                         html.as_uri() + "?carta"], timeout=120, capture_output=True)
         print(f"archivio: {pdf}", flush=True)
@@ -572,27 +605,60 @@ def archivia_pdf(html):
         print(f"  pdf saltato ({err})", flush=True)
 
 
+def giro(con, oggi):
+    print(f"── giro del {dt.datetime.now():%Y-%m-%d %H:%M}", flush=True)
+    raccogli_meteo(con, oggi)
+    for nome, raccogli in (("notizie", raccogli_notizie), ("github", raccogli_repo), ("sport", raccogli_sport),
+                           ("attualita", raccogli_attualita), ("gaming", raccogli_gaming)):
+        if attiva(nome):
+            raccogli(con, oggi)
+    if dt.date.today().weekday() >= 5 and attiva("weekend"):   # sabato e domenica: il weekend al posto della ricerca
+        raccogli_weekend(con, oggi)
+    elif attiva("ricerca"):
+        raccogli_ricerca(con, oggi)
+    scegli(con, oggi)
+    traduci(con, oggi)
+    impagina(con, oggi)
+
+
+def demone():
+    """Per Docker: il server sempre acceso e un giro al giorno all'ora RADAR_ORA (HH:MM, default 07:30). Il giro parte
+    se oggi l'edizione non c'è ancora e l'ora è passata, oppure se non ce n'è mai stata una (prima accensione).
+    Il profilo si rilegge a ogni giro: chi lo cambia con la TUI non deve riavviare niente."""
+    from . import server
+    ora = dt.time.fromisoformat(os.environ.get("RADAR_ORA", "07:30"))
+    db.apri().close()          # il database si crea qui, una volta: server e giro lo aprono poi in due thread
+    threading.Thread(target=lambda: server.avvia(db.apri(), PROFILO, apri=False), daemon=True).start()
+    edizioni = db.DATI / "edizioni"
+    provato = None
+    while True:
+        adesso = dt.datetime.now()
+        oggi = adesso.date()
+        manca_oggi = not (edizioni / f"{oggi}.html").exists()
+        prima_volta = not list(edizioni.glob("*.html"))
+        if provato != oggi and manca_oggi and (adesso.time() >= ora or prima_volta):
+            provato = oggi                         # un tentativo al giorno: se fallisce si riprova domani
+            try:
+                PROFILO.clear()
+                PROFILO.update(carica_profilo())
+                giro(db.apri(), oggi.isoformat())
+            except Exception as err:               # il demone non deve morire: il server resta acceso
+                print(f"  giro fallito: {err!r}", flush=True)
+        time.sleep(60)
+
+
 def main():
     if sys.stdout:                  # il log passa dalla console cp1252: senza questo un titolo con "ə" ferma il giro
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     comando = sys.argv[1] if len(sys.argv) > 1 else "giro"
+    if comando == "tui":
+        from . import tui
+        return tui.avvia(db.DATI / "profilo.toml")
+    if comando == "demone":
+        return demone()
     con = db.apri()
-    oggi = dt.date.today().isoformat()
     if comando == "giro":
-        print(f"── giro del {dt.datetime.now():%Y-%m-%d %H:%M}", flush=True)
-        raccogli_meteo(con, oggi)
-        raccogli_notizie(con, oggi)
-        raccogli_repo(con, oggi)
-        raccogli_sport(con, oggi)
-        raccogli_attualita(con, oggi)
-        raccogli_gaming(con, oggi)
-        if dt.date.today().weekday() >= 5:     # sabato e domenica: il weekend a Roma al posto della ricerca
-            raccogli_weekend(con, oggi)
-        else:
-            raccogli_ricerca(con, oggi)
-        scegli(con, oggi)
-        traduci(con, oggi)
-        impagina(con, oggi)
+        giro(con, dt.date.today().isoformat())
     elif comando in ("serve", "apri"):
         from . import server
         server.avvia(con, PROFILO, apri=comando == "apri")

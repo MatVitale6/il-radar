@@ -9,6 +9,7 @@ li usa quindi a blocchi: prima tutto ciò che serve a MiniCPM, poi tutte le trad
 """
 import json
 import os
+import shutil
 import subprocess
 import time
 import urllib.request
@@ -16,7 +17,9 @@ from contextlib import contextmanager
 from pathlib import Path
 
 RADICE = Path(__file__).resolve().parent.parent
-OLLAMA = RADICE / "runtime" / "ollama" / "ollama.exe"
+OLLAMA = RADICE / "runtime" / "ollama" / "ollama.exe"      # l'Ollama portabile di Windows, se c'è
+if not OLLAMA.exists():
+    OLLAMA = shutil.which("ollama") or OLLAMA               # altrimenti quello installato nel sistema
 URL = "http://127.0.0.1:11434"
 MODELLO = "openbmb/minicpm4.1"  # 8B; il 5-1B era veloce ma scriveva un italiano povero
 TRADUTTORE = "translategemma:4b"

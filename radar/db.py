@@ -1,8 +1,13 @@
 """Archivio SQLite: ogni elemento visto una volta sola, con punteggio dal profilo e giudizio tuo."""
+import os
 import sqlite3
 from pathlib import Path
 
-FILE = Path(__file__).resolve().parent.parent / "data" / "radar.db"
+RADICE = Path(__file__).resolve().parent.parent
+# Dove vivono i dati dell'utente (database, edizioni, profilo). In Docker è il volume /dati; altrimenti la cartella
+# del progetto, come prima.
+DATI = Path(os.environ.get("RADAR_DATI") or RADICE)
+FILE = DATI / "data" / "radar.db"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS elementi (
