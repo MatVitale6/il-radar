@@ -11,6 +11,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -605,8 +606,23 @@ def archivia_pdf(html):
         print(f"  pdf saltato ({err})", flush=True)
 
 
+def aspetta_rete(minuti=10):
+    """Dopo un avvio del PC la rete (e la VPN) arriva dopo l'attività pianificata: senza, ogni fonte fallisce col DNS."""
+    fine = time.monotonic() + minuti * 60
+    while True:
+        try:
+            socket.getaddrinfo("www.ansa.it", 443)
+            return
+        except OSError:
+            if time.monotonic() > fine:
+                print("  rete assente: si prova lo stesso", flush=True)
+                return
+            time.sleep(15)
+
+
 def giro(con, oggi):
     print(f"── giro del {dt.datetime.now():%Y-%m-%d %H:%M}", flush=True)
+    aspetta_rete()
     raccogli_meteo(con, oggi)
     for nome, raccogli in (("notizie", raccogli_notizie), ("github", raccogli_repo), ("sport", raccogli_sport),
                            ("attualita", raccogli_attualita), ("gaming", raccogli_gaming)):
