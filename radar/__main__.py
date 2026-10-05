@@ -146,6 +146,18 @@ def valuta_gaming(e):
     return 1 + sum(parole.values()) + e["peso"], _elenco(parole), None
 
 
+def valuta_bandi(e):
+    """Un bando che interessa a un ingegnere informatico: deve parlare di informatica/ICT/ingegneria nel titolo, essere
+    un'offerta (concorso, avviso, selezione...) e non essere un quiz, una graduatoria o un esito (cioè qualcosa a cui non ci si può più candidare)."""
+    cfg, titolo = PROFILO["bandi"], e["titolo"]
+    uno = lambda parole: dict.fromkeys(parole, 1)
+    if (trovate(titolo, uno(cfg["escludi"])) or not trovate(titolo, uno(cfg["profilo"]))
+            or not trovate(titolo, uno(cfg["azione"]))):
+        return 0, "", None
+    parole = trovate(titolo + " " + e["testo"], cfg["parole"])
+    return sum(parole.values()) + e["peso"], _elenco(parole), None
+
+
 PARTICIPIO = re.compile(r"\b\w{3,}(?:at|it|ut)[oaie]\b", re.I)          # "approvato", "perquisiti", "intitolato"
 DICHIARAZIONE = re.compile(r"^[^,:'\"«“]{2,40}[,:]\s*['\"«“‘]")        # "Meloni, 'studenti...'": un'opinione
 
@@ -306,6 +318,11 @@ def raccogli_sport(con, oggi):
 
 def raccogli_gaming(con, oggi):
     _raccogli_feed(con, oggi, "gaming", fonti.GAMING, PROFILO["gaming"]["ore"], valuta_gaming)
+
+
+def raccogli_bandi(con, oggi):
+    if "bandi" in PROFILO:                                      # profili vecchi, scritti prima di questa sezione
+        _raccogli_feed(con, oggi, "bandi", fonti.BANDI, PROFILO["bandi"]["ore"], valuta_bandi)
 
 
 def raccogli_attualita(con, oggi):
@@ -492,6 +509,9 @@ def scegli(con, oggi):
     _scegli(con, oggi, "sport", [("articolo", s["articoli"], s["soglia_articolo"], True), ("breve", s["brevi"], s["soglia"], False)])
     gm = PROFILO["gaming"]
     _scegli(con, oggi, "gaming", [("articolo", gm["articoli"], gm["soglia_articolo"], True), ("breve", gm["brevi"], gm["soglia"], False)])
+    if "bandi" in PROFILO:
+        b = PROFILO["bandi"]
+        _scegli(con, oggi, "bandi", [("breve", b["massimo"], b["soglia"], False)])
     for zona in ("italia", "estero"):
         _scegli(con, oggi, "attualita", [("breve", a["per_zona"], 1, False)], rubrica=zona)
     _scegli_weekend(con, oggi)
@@ -625,7 +645,8 @@ def giro(con, oggi):
     aspetta_rete()
     raccogli_meteo(con, oggi)
     for nome, raccogli in (("notizie", raccogli_notizie), ("github", raccogli_repo), ("sport", raccogli_sport),
-                           ("attualita", raccogli_attualita), ("gaming", raccogli_gaming)):
+                           ("attualita", raccogli_attualita), ("gaming", raccogli_gaming),
+                           ("bandi", raccogli_bandi)):
         if attiva(nome):
             raccogli(con, oggi)
     if dt.date.today().weekday() >= 5 and attiva("weekend"):   # sabato e domenica: il weekend al posto della ricerca

@@ -84,7 +84,7 @@ l'altezza, come un quotidiano:
 - **a sinistra (3/4)**: l'apertura; le notizie su AI e sviluppo con riassunto, in rubriche (Governi e regole,
   Cybersicurezza, AI e sviluppo); i repository GitHub con una spiegazione; lo sport importante; il gaming; nel weekend,
   se la accendi, l'agenda della tua città
-- **a destra (1/4)**: i titoli, cioè In breve, Sport, Gaming, Italia, Estero, Dalla ricerca
+- **a destra (1/4)**: i titoli, cioè In breve, Sport, Gaming, Bandi e concorsi, Italia, Estero, Dalla ricerca
 
 **Stampa: al massimo 2 fogli A4.** I fogli li costruisce lo script della pagina, non il browser. Appena la pagina è
 aperta (e caricati i caratteri) lo script misura ogni articolo e lo dispone a mano nelle colonne di due fogli da
@@ -115,6 +115,9 @@ spezzare e il risultato è identico ovunque.
      Square, Nintendo Life + Google News. Fuori offerte, guide, trucchi, anime
    - attualità: ANSA, Il Fatto Quotidiano, ISTAT. Solo fatti avvenuti: verbo di fatto compiuto o participio passato,
      niente ipotesi, domande, sole dichiarazioni, calcio
+   - bandi e concorsi: Concorsando e ricerche mirate su Google News (concorsi per funzionari informatici, avvisi e incarichi
+     per ingegneri informatici, anche a Roma e nel Lazio). Entra solo ciò che nel titolo parla di informatica/ICT/ingegneria
+     ed è un'offerta aperta: quiz, graduatorie ed esiti restano fuori. Un bando esce una volta sola. Solo titoli
    - ricerca: arXiv (cs.AI, cs.LG, cs.CR), solo titoli
 2. **doppioni** — SQLite in `data/radar.db`. La stessa notizia da più testate (titoli simili, anche tra italiano e
    inglese) diventa una sola, con "su N testate" e punti in più

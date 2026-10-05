@@ -449,11 +449,56 @@ fonti_locali = ["lazioeventi.com", "RomaToday", "romapop.it", "Roma.Com", "EZ Ro
 "Scuderie" = 3
 "Vittoriano" = 2
 
+# ── BANDI E CONCORSI (solo titoli, in barra laterale) ───────────────────────
+# Concorsi, avvisi e incarichi per chi fa l'ingegnere informatico. Entra solo ciò che nel titolo parla di
+# informatica/ICT/ingegneria (`profilo`), è un'offerta (`azione`: concorso, avviso, selezione...) e non è un quiz, una graduatoria o un esito (`escludi`): cose a cui non ci
+# si può più candidare. Un bando compare una volta sola, il giorno in cui lo trova.
+[bandi]
+attiva = true
+ore = 240         # un bando resta aperto per settimane
+soglia = 5
+massimo = 6
+profilo = ["informatic*", "ICT", "ingegner*", "cyber*", "software", "sistemi informativi", "digitale", "tecnologo"]
+azione = ["concors*", "bando", "bandi", "avviso", "avvisi", "selezion*", "assum*", "assunzion*", "posti", "incaric*", "candidatur*", "offert*"]
+escludi = ["quiz", "banca dati", "graduatori*", "vincitor*", "rinunc*", "esito", "esiti", "calendario", "preselettiva",
+           "prova scritta", "prova orale", "diario", "scorrimento", "come prepararsi", "commissione", "simulazione"]
+[bandi.parole]
+"ingegnere informatico" = 5
+"ingegneri informatici" = 5
+"ingegneria informatica" = 4
+"ingegner*" = 2
+"funzionario informatico" = 4
+"funzionari informatici" = 4
+"funzionario tecnico" = 1
+"informatic*" = 2
+"ICT" = 2
+"cyber*" = 2
+"sicurezza informatica" = 3
+"sistemi informativi" = 2
+"sviluppator*" = 2
+"software" = 1
+"albo" = 3
+"incarico" = 2
+"incarichi professionali" = 3
+"libero professionista" = 3
+"liberi professionisti" = 3
+"partita IVA" = 3
+"tempo indeterminato" = 1
+"Roma" = 2
+"Lazio" = 2
+"Sapienza" = 1
+"operator*" = -1
+"diplomati" = -3
+"infermier*" = -5
+"sanitari*" = -3
+"docent*" = -2
+"autista" = -5
+
 # ── 5. RICERCA (arXiv): solo titoli, in barra laterale ────────────────────────
 [ricerca]
 attiva = true
 soglia = 6        # voto minimo (0-10)
-massimo = 5
+massimo = 3
 
 [ricerca.parole]
 # AI applicata

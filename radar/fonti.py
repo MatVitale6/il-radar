@@ -67,6 +67,16 @@ ATTUALITA = [
     ("ISTAT", "https://www.istat.it/feed/", "it", 4, "italia"),
 ]
 
+# Bandi e concorsi per un ingegnere informatico: Concorsando (concorsi di tutta Italia) e ricerche mirate su Google News.
+# Un bando resta aperto settimane, quindi la finestra è larga.
+BANDI = [
+    ("Concorsando", "https://www.concorsando.it/blog/feed/", "it", 0),
+    ("Google News", _gnews('concorso ("ingegnere informatico" OR "funzionario informatico" OR "funzionario tecnico informatico" OR "esperto ICT")', "it", 14), "it", 0),
+    ("Google News", _gnews('bando OR avviso ("ingegnere informatico" OR "ingegneria informatica" OR "servizi informatici") (incarico OR selezione OR professionisti)', "it", 14), "it", 0),
+    ("Google News", _gnews('avviso OR concorso informatico OR ICT OR cybersicurezza (Roma OR Lazio) (selezione OR assunzione OR incarico)', "it", 14), "it", 0),
+    ("Google News", _gnews('"albo degli ingegneri" informatica (avviso OR incarico OR elenco OR professionisti)', "it", 14), "it", 0),
+]
+
 # Gaming: italiane e inglesi; le inglesi le traduce il modello. Eurogamer.it ha un feed con XML rotto.
 GAMING = [
     ("Everyeye", "https://www.everyeye.it/feed/", "it", 0),

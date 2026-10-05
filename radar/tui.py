@@ -215,6 +215,7 @@ SEZIONI = {
     "sport": ("Sport", ("articoli", "brevi")),
     "attualita": ("Attualità, solo titoli", ("per_zona",)),
     "gaming": ("Gaming", ("articoli", "brevi")),
+    "bandi": ("Bandi e concorsi, solo titoli", ("massimo",)),
     "weekend": ("Weekend: agenda della città", ("massimo",)),
     "ricerca": ("Ricerca (arXiv), solo titoli", ("massimo",)),
 }
@@ -227,6 +228,7 @@ ARGOMENTI = [
     ("notizie.giu", "Notizie · da spingere giù (pesi negativi)"),
     ("sport.discipline", "Sport · discipline che segui"),
     ("gaming.parole", "Gaming · parole che contano"),
+    ("bandi.parole", "Bandi · parole che contano"),
     ("ricerca.parole", "Ricerca · parole che contano"),
 ]
 LISTE = [("sport", "italiani", "Sport · atleti italiani da seguire"),

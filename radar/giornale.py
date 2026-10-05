@@ -167,7 +167,7 @@ def pagina(con, data, profilo):
     sport, sport_brevi = scelti("sport", "articolo"), scelti("sport", "breve")
     gaming, gaming_brevi = scelti("gaming", "articolo"), scelti("gaming", "breve")
     italia, estero = scelti("attualita", "breve", "AND rubrica='italia'"), scelti("attualita", "breve", "AND rubrica='estero'")
-    ricerca = scelti("ricerca", "breve")
+    ricerca, bandi = scelti("ricerca", "breve"), scelti("bandi", "breve")
     d = dt.date.fromisoformat(data)
     eventi = []
     if d.weekday() >= 5:            # sabato e domenica: il weekend a Roma (la domenica anche ciò che è uscito sabato)
@@ -189,7 +189,8 @@ def pagina(con, data, profilo):
     # non ci sta, si toglie dal fondo: prima la ricerca, poi l'estero, l'Italia, lo sport.
     lista = lambda righe, riserve=(): "".join(voce(r, r["id"]) for r in riserve) + "".join(voce(r) for r in righe)
     laterale = [("brevi", "In breve", lista(brevi, resto)), ("sport", "Sport", lista(sport_brevi, sport)),
-                ("gaming", "Gaming", lista(gaming_brevi, gaming)), ("italia", "Italia", lista(italia)), ("estero", "Estero", lista(estero)),
+                ("gaming", "Gaming", lista(gaming_brevi, gaming)), ("bandi", "Bandi e concorsi", lista(bandi)),
+                ("italia", "Italia", lista(italia)), ("estero", "Estero", lista(estero)),
                 ("ricerca", "Dalla ricerca", lista(ricerca))]
     laterale = "".join(f'<h2>{nome}</h2><ol class="{chiave}">{voci}</ol>' for chiave, nome, voci in laterale if voci)
 
@@ -243,7 +244,7 @@ def pagina(con, data, profilo):
 {fondo}
 <footer class="colophon">Notizie: The Verge, TechCrunch, The Register, The Record, BleepingComputer, Ars Technica,
 Rest of World, Hacker News, Il Post, Agenda Digitale, Key4biz, Google News · attualità: ANSA, Il Fatto Quotidiano,
-ISTAT · sport: OA Sport, FIDAL, Runner's World, ANSA · codice: GitHub · ricerca: arXiv · meteo: Aeronautica
+ISTAT · bandi: Concorsando, Google News · sport: OA Sport, FIDAL, Runner's World, ANSA · codice: GitHub · ricerca: arXiv · meteo: Aeronautica
 Militare<br>Scelti dalle parole chiave del profilo · tradotti e riassunti in locale da MiniCPM4.1 · nessun testo
 inviato a servizi esterni</footer>
 </main>
