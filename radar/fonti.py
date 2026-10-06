@@ -136,9 +136,11 @@ def meteo_am(lat, lon):
     inizio = dt.datetime.fromisoformat(oggi["localDate"])            # mezzanotte ora italiana, con lo scarto (+02:00)
     ore = [i for i, t in enumerate(d["timeseries"])
            if inizio <= dt.datetime.fromisoformat(t.replace("Z", "+00:00")) < inizio + dt.timedelta(days=1)]
-    pioggia = sum(float(serie["tpp"][str(i)] or 0) for i in ore)       # mm previsti nella giornata
+    # `tpp` è la probabilità di pioggia in %, ora per ora (non millimetri): si tiene la più alta della giornata.
+    # Sotto il 20% si scrive "niente pioggia" (pioggia_mm = 0); altrimenti la pagina mostra la probabilità.
+    pioggia = max(float(serie["tpp"][str(i)] or 0) for i in ore)
     return {"cielo": ICONE_AM.get(oggi["icon"], "variabile"), "min": oggi["minCelsius"], "max": oggi["maxCelsius"],
-            "pioggia_mm": round(pioggia, 1), "fonte": "Aeronautica Militare"}
+            "pioggia_mm": 0 if pioggia < 20 else None, "pioggia": round(pioggia), "fonte": "Aeronautica Militare"}
 
 
 def meteo_open(lat, lon):

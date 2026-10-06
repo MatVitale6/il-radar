@@ -302,7 +302,7 @@ def _raccogli_feed(con, oggi, sezione, elenco, ore, valuta):
             if gemella:
                 _inserisci(con, e | {"sezione": "doppione", "extra": json.dumps({"di": gemella[0]})}, oggi, 0, "", None)
                 if gemella[1] == oggi:
-                    con.execute("UPDATE elementi SET copertura = copertura + 1, punti = punti + 1 WHERE id = ?",
+                    con.execute("UPDATE elementi SET copertura = copertura + 1, punti = punti + 1 WHERE id = ? AND punti > 0",
                                 (gemella[0],))
                 continue
             punti, parole, rubrica = valuta(e, *zona)
@@ -626,23 +626,25 @@ def archivia_pdf(html):
         print(f"  pdf saltato ({err})", flush=True)
 
 
-def aspetta_rete(minuti=10):
-    """Dopo un avvio del PC la rete (e la VPN) arriva dopo l'attività pianificata: senza, ogni fonte fallisce col DNS."""
+def aspetta_rete(minuti=3):
+    """Dopo un risveglio o un avvio la rete (e la VPN) arriva dopo l'attività pianificata: senza, ogni fonte fallisce
+    col DNS e l'edizione esce vuota. True se c'è la rete; False se non arriva entro `minuti`."""
     fine = time.monotonic() + minuti * 60
     while True:
         try:
             socket.getaddrinfo("www.ansa.it", 443)
-            return
+            return True
         except OSError:
             if time.monotonic() > fine:
-                print("  rete assente: si prova lo stesso", flush=True)
-                return
+                return False
             time.sleep(15)
 
 
 def giro(con, oggi):
     print(f"── giro del {dt.datetime.now():%Y-%m-%d %H:%M}", flush=True)
-    aspetta_rete()
+    if not aspetta_rete():             # niente edizione vuota che copre quella vecchia: chi chiama riprova più tardi
+        print("  rete assente: giro rimandato", flush=True)
+        return False
     raccogli_meteo(con, oggi)
     for nome, raccogli in (("notizie", raccogli_notizie), ("github", raccogli_repo), ("sport", raccogli_sport),
                            ("attualita", raccogli_attualita), ("gaming", raccogli_gaming),
@@ -656,6 +658,7 @@ def giro(con, oggi):
     scegli(con, oggi)
     traduci(con, oggi)
     impagina(con, oggi)
+    return True
 
 
 def demone():
@@ -678,7 +681,8 @@ def demone():
             try:
                 PROFILO.clear()
                 PROFILO.update(carica_profilo())
-                giro(db.apri(), oggi.isoformat())
+                if not giro(db.apri(), oggi.isoformat()):
+                    provato = None                 # senza rete: si riprova al prossimo minuto utile
             except Exception as err:               # il demone non deve morire: il server resta acceso
                 print(f"  giro fallito: {err!r}", flush=True)
         time.sleep(60)
@@ -695,7 +699,13 @@ def main():
         return demone()
     con = db.apri()
     if comando == "giro":
-        giro(con, dt.date.today().isoformat())
+        oggi = dt.date.today().isoformat()
+        # `giro --se-manca`: lo lancia ogni 15 minuti l'Utilità di pianificazione; senza rete il giro non produce
+        # nulla, e al tentativo dopo la rete c'è. Se l'edizione di oggi esiste già non fa niente.
+        if "--se-manca" in sys.argv and (db.DATI / "edizioni" / f"{oggi}.html").exists():
+            return
+        if not giro(con, oggi):
+            sys.exit(1)
     elif comando in ("serve", "apri"):
         from . import server
         server.avvia(con, PROFILO, apri=comando == "apri")
